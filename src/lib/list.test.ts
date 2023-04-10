@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { CustomLinkedList } from "./list";
 
@@ -7,6 +7,10 @@ describe("DoublyLinkedList", () => {
 
   beforeEach(() => {
     list = new CustomLinkedList<number>(0);
+  });
+
+  afterEach(() => {
+    list.destroy();
   });
 
   it("should add elements to the front of the list", () => {

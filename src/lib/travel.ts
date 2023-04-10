@@ -1,17 +1,31 @@
 import {
-  createMemo,
-  createSignal,
-  from,
-  untrack,
+  Accessor,
   SignalOptions,
+  createRenderEffect,
+  onCleanup,
 } from "solid-js";
+import { createSignal, untrack } from "solid-js";
+
 import { CustomLinkedList, ListNode } from "./list";
 
-interface Options<T> {
+interface TimeTravelSignalOptions<T> {
   keepSameValues?: boolean;
   historyLength?: number;
   signalOptions?: SignalOptions<T> | undefined;
 }
+
+type Setter<T> = <U extends T>(value: T | ((prev: T) => U)) => T;
+
+type TimeTravelSignal<T> = [
+  Accessor<T>,
+  Setter<T>,
+  {
+    undo: VoidFunction;
+    redo: VoidFunction;
+    clear: VoidFunction;
+    size: Accessor<number>;
+  }
+];
 
 const DEFAULT_OPTIONS = {
   keepSameValues: false,
@@ -19,52 +33,48 @@ const DEFAULT_OPTIONS = {
   signalOptions: undefined,
 };
 
-export const createTimeTravelSignal = <T>(
+export function createTimeTravelSignal<T extends any>(
   initialValue: T,
-  options?: Options<T>
-) => {
+  options?: TimeTravelSignalOptions<T>
+): TimeTravelSignal<T> {
   const resolvedOptions = { ...DEFAULT_OPTIONS, ...options };
 
   const [value, setValue] = createSignal(initialValue, options?.signalOptions);
   const [list, setList] = createSignal(new CustomLinkedList(initialValue));
 
-  const [allowedRedoCount, setAllowedRedoCount] = createSignal(0);
+  let allowedRedoCount = 0;
   // Should not be null
   let currentNodePointer: ListNode<T> | null = list().getLastNode();
 
-  const sizeSignal = createMemo(() => {
-    const currentList = list();
+  const size = () => list().length();
 
-    const sizeSignal = from<number>((set) => {
-      set(currentList.length());
-
-      currentList.subscribe(set);
-
-      return () => currentList.unsubscribe(set);
-    });
-
-    return sizeSignal;
-  });
-
-  const size = createMemo(() => {
-    return (sizeSignal()() ?? 0) - allowedRedoCount();
-  });
-
-  const set = (newValue: T) =>
+  const set: Setter<T> = (newValue) =>
     untrack(() => {
-      if (resolvedOptions.keepSameValues || newValue !== value()) {
+      const valueToSet =
+        newValue instanceof Function ? newValue(value()) : newValue;
+
+      if (resolvedOptions.keepSameValues || valueToSet !== value()) {
         // we don't need to trigger effects on size twice
         // TODO solve this later
-        list().addLast(newValue);
+        list().addLast(valueToSet);
 
         if (list().length() > resolvedOptions.historyLength)
           list().removeFirst();
       }
 
-      setValue(() => newValue);
+      setValue(() => valueToSet);
+
+      // If we had some actions to redo
+      // we need to prune them
+      // TODO maybe clear them from the list?
+      if (allowedRedoCount > 0) {
+        list().setSize((s) => s - allowedRedoCount);
+        allowedRedoCount = 0;
+      }
 
       currentNodePointer = list().getLastNode();
-      setAllowedRedoCount(0);
+
+      return valueToSet;
     });
 
   const undo = () =>
@@ -74,21 +84,21 @@ export const createTimeTravelSignal = <T>(
       if (currentNodePointer.prev === null) return;
 
       currentNodePointer = currentNodePointer.prev;
-      setAllowedRedoCount((c) => c + 1);
+      allowedRedoCount += 1;
 
       setValue(() => currentNodePointer!.value);
     });
 
   const redo = () =>
     untrack(() => {
-      if (allowedRedoCount() <= 0) return;
+      if (allowedRedoCount <= 0) return;
 
       if (!currentNodePointer) throw new Error();
 
       if (!currentNodePointer.next) return;
 
       currentNodePointer = currentNodePointer.next;
-      setAllowedRedoCount((c) => c - 1);
+      allowedRedoCount -= 1;
 
       setValue(() => currentNodePointer!.value);
     });
@@ -99,6 +109,13 @@ export const createTimeTravelSignal = <T>(
     setList(new CustomLinkedList(currentNodePointer.value));
   };
 
+  // when list changes we need to clean up the old one
+  createRenderEffect(() => {
+    const l = list();
+
+    onCleanup(() => l.destroy());
+  });
+
   return [
     value,
     set,
@@ -108,5 +125,5 @@ export const createTimeTravelSignal = <T>(
       size,
       redo,
     },
-  ] as const;
-};
+  ];
+}

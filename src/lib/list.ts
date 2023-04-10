@@ -1,4 +1,5 @@
-import { Observable } from "./observable";
+import type { Accessor, Setter } from "solid-js";
+import { createRoot, createSignal } from "solid-js";
 
 export class ListNode<T> {
   value: T;
@@ -14,41 +15,49 @@ export class ListNode<T> {
 
 const errorMessage = "A node doesn't exist";
 
-type SubscribeFunction = (size: number) => void;
-
-export class CustomLinkedList<
-  T extends any = any
-> extends Observable<SubscribeFunction> {
+export class CustomLinkedList<T extends any = any> {
   private head: ListNode<T> | null;
   private tail: ListNode<T> | null;
-  private size: number;
+  private reactiveSystem: {
+    dispose: VoidFunction;
+    size: Accessor<number>;
+    setSize: Setter<number>;
+  };
 
   constructor(value: T) {
-    super();
-
     const node = new ListNode(value);
 
     this.head = node;
     this.tail = node;
-    this.size = 1;
+    this.reactiveSystem = createRoot((dispose) => {
+      const [size, setSize] = createSignal(1);
+
+      return {
+        size,
+        setSize,
+        dispose,
+      };
+    });
   }
 
-  private triggerSubscriptions() {
-    this.subscriptions.forEach((f) => f(this.length()));
+  destroy() {
+    this.reactiveSystem.dispose();
+  }
+
+  setSize(size: number | ((prev: number) => number)) {
+    this.reactiveSystem.setSize(size);
   }
 
   length(): number {
-    return this.size;
+    return this.reactiveSystem.size();
   }
 
   isEmpty(): boolean {
-    return this.size === 0;
+    return this.reactiveSystem.size() === 0;
   }
 
   changeSize(term: number) {
-    this.size += term;
-
-    this.triggerSubscriptions();
+    this.reactiveSystem.setSize((s) => s + term);
   }
 
   contains(value: T): boolean {

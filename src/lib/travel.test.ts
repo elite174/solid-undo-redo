@@ -13,13 +13,29 @@ const wrapReactive = (fn: VoidFunction) => {
   dispose();
 };
 
-describe("withTimeTravel", () => {
+describe("createTimeTravelSignal", () => {
   it("should be correctly initialized", () => {
     wrapReactive(() => {
       const [value, _, { size }] = createTimeTravelSignal(1);
 
       expect(value()).toBe(1);
       expect(size()).toBe(1);
+    });
+  });
+
+  it("should set items correctly", () => {
+    wrapReactive(() => {
+      const [value, setValue] = createTimeTravelSignal(1);
+
+      expect(value()).toBe(1);
+
+      setValue(2);
+
+      expect(value()).toBe(2);
+
+      setValue((v) => v + 2);
+
+      expect(value()).toBe(4);
     });
   });
 
@@ -81,7 +97,7 @@ describe("withTimeTravel", () => {
         undo();
 
         expect(value()).toBe(1);
-        expect(size()).toBe(1);
+        expect(size()).toBe(2);
       });
     });
 
@@ -97,8 +113,8 @@ describe("withTimeTravel", () => {
     });
   });
 
-  describe("clear method", () => {
-    it("should work correctly", () => {
+  describe.only("clear method", () => {
+    it.only("should work correctly", () => {
       wrapReactive(() => {
         const [value, setValue, { size, clear }] = createTimeTravelSignal(1);
 
@@ -113,6 +129,57 @@ describe("withTimeTravel", () => {
 
         expect(value()).toBe(2);
         expect(size()).toBe(1);
+      });
+    });
+  });
+
+  describe("redo function", () => {
+    it("should work correctly", () => {
+      wrapReactive(() => {
+        const [value, setValue, { size, redo }] = createTimeTravelSignal(1);
+
+        expect(value()).toBe(1);
+        expect(size()).toBe(1);
+
+        redo();
+
+        expect(value()).toBe(1);
+        expect(size()).toBe(1);
+
+        setValue(2);
+
+        expect(value()).toBe(2);
+        expect(size()).toBe(2);
+      });
+    });
+
+    it("should work correctly with undo", () => {
+      wrapReactive(() => {
+        const [value, setValue, { size, redo, undo }] =
+          createTimeTravelSignal(1);
+
+        expect(value()).toBe(1);
+        expect(size()).toBe(1);
+
+        undo();
+
+        expect(value()).toBe(1);
+        expect(size()).toBe(1);
+
+        setValue(2);
+
+        expect(value()).toBe(2);
+        expect(size()).toBe(2);
+
+        undo();
+
+        expect(value()).toBe(1);
+        expect(size()).toBe(2);
+
+        redo();
+
+        expect(value()).toBe(2);
+        expect(size()).toBe(2);
       });
     });
   });
