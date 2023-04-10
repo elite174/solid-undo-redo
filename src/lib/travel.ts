@@ -8,15 +8,15 @@ import { createSignal, untrack } from "solid-js";
 
 import { CustomLinkedList, ListNode } from "./list";
 
-interface TimeTravelSignalOptions<T> {
+export interface TimeTravelSignalOptions<T> {
   keepSameValues?: boolean;
   historyLength?: number;
   signalOptions?: SignalOptions<T> | undefined;
 }
 
-type Setter<T> = <U extends T>(value: T | ((prev: T) => U)) => T;
+export type Setter<T> = <U extends T>(value: T | ((prev: T) => U)) => T;
 
-type TimeTravelSignal<T> = [
+export type TimeTravelSignal<T> = [
   Accessor<T>,
   Setter<T>,
   {
