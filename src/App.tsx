@@ -75,8 +75,8 @@ const App: Component = () => {
         <div class="flex flex-col gap-1 text-center">
           <b class="text-3xl">[{historyItems()}]</b>
           <span class="text-zinc-400">
-            Current history <br /> (history length in this example is{" "}
-            {HISTORY_LENGTH})
+            Current history size: {size()} <br /> (history length in this
+            example is {HISTORY_LENGTH})
           </span>
         </div>
         <div class="flex gap-2">
