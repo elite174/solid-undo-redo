@@ -32,10 +32,14 @@ const App: Component = () => {
       <h1 class="text-4xl font-bold">
         solid-undo-redo <b>v{pkg.version}</b>
       </h1>
-      <p class="text-lime-300">
+      <p class="text-lime-300 text-center">
         ⚡Add history to your app like EZY PZY⚡
         <br />
         The history is list-based, so it works in O(1)!
+        <br />
+        <a class="text-2xl underline" href="https://github.com/elite174/solid-undo-redo" target="_blank">
+          Github
+        </a>
       </p>
       <section class="flex flex-col gap-4 items-center">
         <div class="flex flex-col gap-2 text-center">

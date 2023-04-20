@@ -1,11 +1,5 @@
-import {
-  Accessor,
-  SignalOptions,
-  batch,
-  createMemo,
-  createSignal,
-  untrack,
-} from "solid-js";
+import type { Accessor, SignalOptions } from "solid-js";
+import { batch, createMemo, createSignal, untrack } from "solid-js";
 
 export interface UndoRedoSignalOptions<T> {
   historyLength?: number;
@@ -33,13 +27,11 @@ class ListNode<T> {
   value: T;
   next: ListNode<T> | null;
   prev: ListNode<T> | null;
-  timestamp: number;
 
   constructor(value: T) {
     this.value = value;
     this.next = null;
     this.prev = null;
-    this.timestamp = performance.now();
   }
 }
 
