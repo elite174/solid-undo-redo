@@ -15,7 +15,7 @@ The implementation is list-based, so it works in **O(1)** instead of O(n)!
 ## Usage
 
 ```tsx
-import {createUndoRedo} from 'solid-undo-redo';
+import {createUndoRedoSignal} from 'solid-undo-redo';
 
 ...
 
