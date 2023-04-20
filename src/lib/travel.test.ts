@@ -1,7 +1,7 @@
 import { createRoot } from "solid-js";
 import { describe, expect, it } from "vitest";
 
-import { createTimeTravelSignal } from "./travel";
+import { createUndoRedoSignal } from "./travel";
 
 const wrapReactive = (fn: VoidFunction) => {
   const dispose = createRoot((dispose) => {
@@ -13,19 +13,21 @@ const wrapReactive = (fn: VoidFunction) => {
   dispose();
 };
 
-describe("createTimeTravelSignal", () => {
+describe("createUndoRedoSignal", () => {
   it("should be correctly initialized", () => {
     wrapReactive(() => {
-      const [value, _, { size }] = createTimeTravelSignal(1);
+      const [value, _, { isRedoPossible, isUndoPossible }] =
+        createUndoRedoSignal(1);
 
       expect(value()).toBe(1);
-      expect(size()).toBe(1);
+      expect(isRedoPossible()).toBe(false);
+      expect(isUndoPossible()).toBe(false);
     });
   });
 
   it("should set items correctly", () => {
     wrapReactive(() => {
-      const [value, setValue] = createTimeTravelSignal(1);
+      const [value, setValue] = createUndoRedoSignal(1);
 
       expect(value()).toBe(1);
 
@@ -42,93 +44,71 @@ describe("createTimeTravelSignal", () => {
   describe("set method", () => {
     it("should add new items to the history", () => {
       wrapReactive(() => {
-        const [value, setValue, { size }] = createTimeTravelSignal(1);
+        const [value, setValue, { isUndoPossible }] = createUndoRedoSignal(1);
+
+        expect(isUndoPossible()).toBe(false);
 
         setValue(3);
 
         expect(value()).toBe(3);
-        expect(size()).toBe(2);
-      });
-    });
-
-    it("should not exceed the size", () => {
-      wrapReactive(() => {
-        const [value, setValue, { size }] = createTimeTravelSignal(1, {
-          historyLength: 2,
-        });
-
-        setValue(3);
-
-        expect(value()).toBe(3);
-        expect(size()).toBe(2);
-
-        setValue(4);
-
-        expect(value()).toBe(4);
-        expect(size()).toBe(2);
+        expect(isUndoPossible()).toBe(true);
       });
     });
   });
 
   describe("undo method", () => {
-    it("should correctly undo last value", () => {
+    it("should correctly undo the last value", () => {
       wrapReactive(() => {
-        const [value, setValue, { undo }] = createTimeTravelSignal(1);
+        const [value, setValue, { undo, isUndoPossible }] =
+          createUndoRedoSignal(1);
 
         setValue(2);
 
+        expect(isUndoPossible()).toBe(true);
         expect(value()).toBe(2);
 
         undo();
 
         expect(value()).toBe(1);
-      });
-    });
-
-    it("should trigger size accessor", () => {
-      wrapReactive(() => {
-        const [value, setValue, { undo, size }] = createTimeTravelSignal(1);
-
-        setValue(5);
-
-        expect(value()).toBe(5);
-        expect(size()).toBe(2);
-
-        undo();
-
-        expect(value()).toBe(1);
-        expect(size()).toBe(2);
+        expect(isUndoPossible()).toBe(false);
       });
     });
 
     it("should work correctly with empty history", () => {
       wrapReactive(() => {
-        const [value, setValue, { undo, size }] = createTimeTravelSignal(1);
+        const [value, _, { undo, isUndoPossible }] = createUndoRedoSignal(1);
 
+        expect(isUndoPossible()).toBe(false);
         undo();
 
         expect(value()).toBe(1);
-        expect(size()).toBe(1);
+        expect(isUndoPossible()).toBe(false);
       });
     });
   });
 
-  describe.only("clear method", () => {
-    it.only("should work correctly", () => {
+  describe("clearHistory method", () => {
+    it("should work correctly", () => {
       wrapReactive(() => {
-        const [value, setValue, { size, clear }] = createTimeTravelSignal(1);
+        const [
+          value,
+          setValue,
+          { clearHistory, isUndoPossible, isRedoPossible },
+        ] = createUndoRedoSignal(1);
 
         expect(value()).toBe(1);
 
         setValue(2);
 
         expect(value()).toBe(2);
-        expect(size()).toBe(2);
+        expect(isUndoPossible()).toBe(true);
+        expect(isRedoPossible()).toBe(false);
 
-        clear();
+        clearHistory();
 
         expect(value()).toBe(2);
-        expect(size()).toBe(1);
+        expect(isUndoPossible()).toBe(false);
+        expect(isRedoPossible()).toBe(false);
       });
     });
   });
@@ -136,76 +116,99 @@ describe("createTimeTravelSignal", () => {
   describe("redo function", () => {
     it("should work correctly", () => {
       wrapReactive(() => {
-        const [value, setValue, { size, redo }] = createTimeTravelSignal(1);
+        const [value, setValue, { redo, isRedoPossible }] =
+          createUndoRedoSignal(1);
 
         expect(value()).toBe(1);
-        expect(size()).toBe(1);
+        expect(isRedoPossible()).toBe(false);
 
         redo();
 
         expect(value()).toBe(1);
-        expect(size()).toBe(1);
+        expect(isRedoPossible()).toBe(false);
 
         setValue(2);
 
         expect(value()).toBe(2);
-        expect(size()).toBe(2);
+        expect(isRedoPossible()).toBe(false);
       });
     });
 
     it("should work correctly with undo", () => {
       wrapReactive(() => {
-        const [value, setValue, { size, redo, undo }] =
-          createTimeTravelSignal(1);
+        const [
+          value,
+          setValue,
+          { redo, undo, isRedoPossible, isUndoPossible },
+        ] = createUndoRedoSignal(1);
 
         expect(value()).toBe(1);
-        expect(size()).toBe(1);
+        expect(isRedoPossible()).toBe(false);
+        expect(isUndoPossible()).toBe(false);
 
         undo();
 
         expect(value()).toBe(1);
-        expect(size()).toBe(1);
+        expect(isRedoPossible()).toBe(false);
+        expect(isUndoPossible()).toBe(false);
 
         setValue(2);
 
         expect(value()).toBe(2);
-        expect(size()).toBe(2);
+        expect(isRedoPossible()).toBe(false);
+        expect(isUndoPossible()).toBe(true);
 
         undo();
 
         expect(value()).toBe(1);
-        expect(size()).toBe(2);
+        expect(isRedoPossible()).toBe(true);
+        expect(isUndoPossible()).toBe(false);
 
         redo();
 
         expect(value()).toBe(2);
-        expect(size()).toBe(2);
+        expect(isRedoPossible()).toBe(false);
+        expect(isUndoPossible()).toBe(true);
       });
     });
   });
 
-  describe("keepSameValues option", () => {
-    it("should keep several same values if set to true", () => {
+  describe("custom signal options option", () => {
+    it("should work with custom comparator function", () => {
       wrapReactive(() => {
-        const [_, setValue, { size }] = createTimeTravelSignal(1, {
-          keepSameValues: true,
-        });
+        const [value, setValue, { isUndoPossible }] = createUndoRedoSignal(
+          "123",
+          {
+            signalOptions: { equals: (prev, next) => prev[0] === next[0] },
+          }
+        );
 
-        setValue(1);
+        expect(value()).toBe("123");
+        expect(isUndoPossible()).toBe(false);
 
-        expect(size()).toBe(2);
+        setValue("12355");
+
+        expect(value()).toBe("123");
+        expect(isUndoPossible()).toBe(false);
       });
     });
 
-    it("should not keep several same values if set to false", () => {
+    it("should keep same values if equals === false", () => {
       wrapReactive(() => {
-        const [_, setValue, { size }] = createTimeTravelSignal(1, {
-          keepSameValues: false,
-        });
+        const [value, setValue, { isUndoPossible }] = createUndoRedoSignal(
+          "123",
+          {
+            signalOptions: { equals: false },
+          }
+        );
 
-        setValue(1);
+        expect(value()).toBe("123");
+        expect(isUndoPossible()).toBe(false);
 
-        expect(size()).toBe(1);
+        setValue("123");
+
+        expect(value()).toBe("123");
+        expect(isUndoPossible()).toBe(true);
       });
     });
   });

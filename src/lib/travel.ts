@@ -1,31 +1,46 @@
 import {
   Accessor,
   SignalOptions,
-  createRenderEffect,
-  onCleanup,
+  batch,
+  createMemo,
+  createSignal,
+  untrack,
 } from "solid-js";
-import { createSignal, untrack } from "solid-js";
 
-import { CustomLinkedList, ListNode } from "./list";
-
-export interface TimeTravelSignalOptions<T> {
-  keepSameValues?: boolean;
+export interface UndoRedoSignalOptions<T> {
   historyLength?: number;
   signalOptions?: SignalOptions<T> | undefined;
 }
 
-export type Setter<T> = <U extends T>(value: T | ((prev: T) => U)) => T;
+export type Setter<T> = (<U extends T>(value: (prev: T) => U) => U) &
+  (<U extends T>(value: Exclude<U, Function>) => U);
 
-export type TimeTravelSignal<T> = [
-  Accessor<T>,
-  Setter<T>,
-  {
+export type UndoRedoSignal<T> = [
+  value: Accessor<T>,
+  setValue: Setter<T>,
+  api: {
     undo: VoidFunction;
     redo: VoidFunction;
-    clear: VoidFunction;
-    size: Accessor<number>;
+    clearHistory: VoidFunction;
+    isUndoPossible: Accessor<boolean>;
+    isRedoPossible: Accessor<boolean>;
+    historyReactiveIterator: () => Generator<T, void, unknown>;
   }
 ];
+
+class ListNode<T> {
+  value: T;
+  next: ListNode<T> | null;
+  prev: ListNode<T> | null;
+  timestamp: number;
+
+  constructor(value: T) {
+    this.value = value;
+    this.next = null;
+    this.prev = null;
+    this.timestamp = performance.now();
+  }
+}
 
 const DEFAULT_OPTIONS = {
   keepSameValues: false,
@@ -33,97 +48,128 @@ const DEFAULT_OPTIONS = {
   signalOptions: undefined,
 };
 
-export function createTimeTravelSignal<T extends any>(
+const INITIAL_HISTORY_SIZE = 0;
+const DEFAULT_COMPARATOR = (prev: unknown, next: unknown) => prev === next;
+
+export const createUndoRedoSignal = <T>(
   initialValue: T,
-  options?: TimeTravelSignalOptions<T>
-): TimeTravelSignal<T> {
+  options?: UndoRedoSignalOptions<T>
+): UndoRedoSignal<T> => {
   const resolvedOptions = { ...DEFAULT_OPTIONS, ...options };
+  const equals = resolvedOptions.signalOptions?.equals ?? DEFAULT_COMPARATOR;
 
-  const [value, setValue] = createSignal(initialValue, options?.signalOptions);
-  const [list, setList] = createSignal(new CustomLinkedList(initialValue));
+  let head = new ListNode<T>(initialValue);
 
-  let allowedRedoCount = 0;
-  // Should not be null
-  let currentNodePointer: ListNode<T> | null = list().getLastNode();
+  const [historySize, setHistorySize] = createSignal(INITIAL_HISTORY_SIZE);
 
-  const size = () => list().length();
+  const [currentNodePointer, setCurrentNodePointer] = createSignal(head);
 
-  const set: Setter<T> = (newValue) =>
-    untrack(() => {
-      const valueToSet =
-        newValue instanceof Function ? newValue(value()) : newValue;
+  let maxHistoryLength = resolvedOptions.historyLength;
 
-      if (resolvedOptions.keepSameValues || valueToSet !== value()) {
-        // we don't need to trigger effects on size twice
-        // TODO solve this later
-        list().addLast(valueToSet);
+  if (maxHistoryLength < 1) {
+    console.warn("fallback to default historyLength");
+    maxHistoryLength = 100;
+  }
 
-        if (list().length() > resolvedOptions.historyLength)
-          list().removeFirst();
-      }
+  const value = createMemo(() => currentNodePointer().value, undefined, {
+    name: resolvedOptions.signalOptions?.name,
+  });
 
-      setValue(() => valueToSet);
+  const addLast = (value: T) => {
+    const newItem = new ListNode<T>(value);
+    const p = untrack(currentNodePointer);
+    const currentSize = untrack(historySize);
 
-      // If we had some actions to redo
-      // we need to prune them
-      // TODO maybe clear them from the list?
-      if (allowedRedoCount > 0) {
-        list().setSize((s) => s - allowedRedoCount);
-        allowedRedoCount = 0;
-      }
+    // If there's something ahead
+    // we need to cut the list from the current pointer
+    if (p.next) p.next.prev = null;
 
-      currentNodePointer = list().getLastNode();
+    p.next = newItem;
+    newItem.prev = p;
 
-      return valueToSet;
+    batch(() => {
+      setCurrentNodePointer(newItem);
+
+      // if we exceeded the limit of items
+      // just move the head
+      if (currentSize + 1 > maxHistoryLength && head.next) {
+        const latestHead = head;
+        // move forward
+        head = head.next;
+        // cleanup the beginning
+        head.prev = null;
+        latestHead.next = null;
+      } else setHistorySize(currentSize + 1);
     });
-
-  const undo = () =>
-    untrack(() => {
-      if (!currentNodePointer) throw new Error();
-
-      if (currentNodePointer.prev === null) return;
-
-      currentNodePointer = currentNodePointer.prev;
-      allowedRedoCount += 1;
-
-      setValue(() => currentNodePointer!.value);
-    });
-
-  const redo = () =>
-    untrack(() => {
-      if (allowedRedoCount <= 0) return;
-
-      if (!currentNodePointer) throw new Error();
-
-      if (!currentNodePointer.next) return;
-
-      currentNodePointer = currentNodePointer.next;
-      allowedRedoCount -= 1;
-
-      setValue(() => currentNodePointer!.value);
-    });
-
-  const clear = () => {
-    if (!currentNodePointer) throw new Error();
-
-    setList(new CustomLinkedList(currentNodePointer.value));
   };
 
-  // when list changes we need to clean up the old one
-  createRenderEffect(() => {
-    const l = list();
+  const setValue: Setter<T> = (newValue) => {
+    const prevValue = untrack(currentNodePointer).value;
+    const nextValue =
+      newValue instanceof Function
+        ? untrack(() => newValue(prevValue))
+        : newValue;
 
-    onCleanup(() => l.destroy());
-  });
+    if (typeof equals === "function" ? equals(prevValue, nextValue) : equals)
+      return prevValue as any;
+
+    addLast(nextValue);
+
+    return nextValue;
+  };
+
+  const undo = () => {
+    const pointer = untrack(currentNodePointer);
+    const prevPointer = pointer.prev;
+
+    if (!pointer || !prevPointer) return;
+
+    setCurrentNodePointer(prevPointer);
+  };
+
+  const redo = () => {
+    const pointer = untrack(currentNodePointer);
+    const nextPointer = pointer.next;
+
+    if (!pointer || !nextPointer) return;
+
+    setCurrentNodePointer(nextPointer);
+  };
+
+  const clearHistory = () => {
+    head = new ListNode(untrack(currentNodePointer).value);
+
+    batch(() => {
+      setCurrentNodePointer(head);
+      setHistorySize(INITIAL_HISTORY_SIZE);
+    });
+  };
+
+  function* historyReactiveIterator() {
+    // make generator reactive
+    currentNodePointer();
+
+    let currentNode: ListNode<T> | null = head;
+
+    while (currentNode !== null) {
+      yield currentNode.value;
+
+      currentNode = currentNode.next;
+    }
+
+    return;
+  }
 
   return [
     value,
-    set,
+    setValue,
     {
       undo,
-      clear,
-      size,
       redo,
+      clearHistory,
+      isUndoPossible: () => Boolean(currentNodePointer().prev),
+      isRedoPossible: () => Boolean(currentNodePointer().next),
+      historyReactiveIterator,
     },
   ];
-}
+};
