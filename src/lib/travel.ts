@@ -25,6 +25,7 @@ export type UndoRedoSignal<T> = [
     isUndoPossible: Accessor<boolean>;
     isRedoPossible: Accessor<boolean>;
     historyReactiveIterator: () => Generator<T, void, unknown>;
+    size: Accessor<number>;
   }
 ];
 
@@ -48,7 +49,7 @@ const DEFAULT_OPTIONS = {
   signalOptions: undefined,
 };
 
-const INITIAL_HISTORY_SIZE = 0;
+const INITIAL_HISTORY_SIZE = 1;
 const DEFAULT_COMPARATOR = (prev: unknown, next: unknown) => prev === next;
 
 export const createUndoRedoSignal = <T>(
@@ -60,10 +61,13 @@ export const createUndoRedoSignal = <T>(
 
   let head = new ListNode<T>(initialValue);
 
-  const [historySize, setHistorySize] = createSignal(INITIAL_HISTORY_SIZE);
-
   const [currentNodePointer, setCurrentNodePointer] = createSignal(head);
+  const [iteratorSubscription, triggerIterator] = createSignal(undefined, {
+    equals: false,
+  });
+  const [size, setSize] = createSignal(INITIAL_HISTORY_SIZE);
 
+  let undoCount = 0;
   let maxHistoryLength = resolvedOptions.historyLength;
 
   if (maxHistoryLength < 1) {
@@ -78,29 +82,30 @@ export const createUndoRedoSignal = <T>(
   const addLast = (value: T) => {
     const newItem = new ListNode<T>(value);
     const p = untrack(currentNodePointer);
-    const currentSize = untrack(historySize);
 
     // If there's something ahead
     // we need to cut the list from the current pointer
-    if (p.next) p.next.prev = null;
+    if (p.next) {
+      p.next.prev = null;
+      setSize((s) => s - undoCount);
+      undoCount = 0;
+    }
 
     p.next = newItem;
     newItem.prev = p;
 
-    batch(() => {
-      setCurrentNodePointer(newItem);
+    setCurrentNodePointer(newItem);
 
-      // if we exceeded the limit of items
-      // just move the head
-      if (currentSize + 1 > maxHistoryLength && head.next) {
-        const latestHead = head;
-        // move forward
-        head = head.next;
-        // cleanup the beginning
-        head.prev = null;
-        latestHead.next = null;
-      } else setHistorySize(currentSize + 1);
-    });
+    // if we exceeded the limit of items
+    // just move the head
+    if (untrack(size) + 1 > maxHistoryLength && head.next) {
+      const latestHead = head;
+      // move forward
+      head = head.next;
+      // cleanup the beginning
+      head.prev = null;
+      latestHead.next = null;
+    } else setSize((s) => s + 1);
   };
 
   const setValue: Setter<T> = (newValue) => {
@@ -113,7 +118,10 @@ export const createUndoRedoSignal = <T>(
     if (typeof equals === "function" ? equals(prevValue, nextValue) : equals)
       return prevValue as any;
 
-    addLast(nextValue);
+    batch(() => {
+      addLast(nextValue);
+      triggerIterator();
+    });
 
     return nextValue;
   };
@@ -124,6 +132,7 @@ export const createUndoRedoSignal = <T>(
 
     if (!pointer || !prevPointer) return;
 
+    undoCount++;
     setCurrentNodePointer(prevPointer);
   };
 
@@ -133,21 +142,24 @@ export const createUndoRedoSignal = <T>(
 
     if (!pointer || !nextPointer) return;
 
+    undoCount--;
     setCurrentNodePointer(nextPointer);
   };
 
   const clearHistory = () => {
     head = new ListNode(untrack(currentNodePointer).value);
+    undoCount = 0;
 
     batch(() => {
+      setSize(INITIAL_HISTORY_SIZE);
+      triggerIterator();
       setCurrentNodePointer(head);
-      setHistorySize(INITIAL_HISTORY_SIZE);
     });
   };
 
   function* historyReactiveIterator() {
-    // make generator reactive
-    currentNodePointer();
+    // make iterator reactive
+    iteratorSubscription();
 
     let currentNode: ListNode<T> | null = head;
 
@@ -170,6 +182,7 @@ export const createUndoRedoSignal = <T>(
       isUndoPossible: () => Boolean(currentNodePointer().prev),
       isRedoPossible: () => Boolean(currentNodePointer().next),
       historyReactiveIterator,
+      size,
     },
   ];
 };

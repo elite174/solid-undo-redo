@@ -85,62 +85,14 @@ describe("createUndoRedoSignal", () => {
         expect(isUndoPossible()).toBe(false);
       });
     });
-  });
 
-  describe("clearHistory method", () => {
-    it("should work correctly", () => {
+    it("should work correctly withoverflow", () => {
       wrapReactive(() => {
         const [
           value,
           setValue,
-          { clearHistory, isUndoPossible, isRedoPossible },
-        ] = createUndoRedoSignal(1);
-
-        expect(value()).toBe(1);
-
-        setValue(2);
-
-        expect(value()).toBe(2);
-        expect(isUndoPossible()).toBe(true);
-        expect(isRedoPossible()).toBe(false);
-
-        clearHistory();
-
-        expect(value()).toBe(2);
-        expect(isUndoPossible()).toBe(false);
-        expect(isRedoPossible()).toBe(false);
-      });
-    });
-  });
-
-  describe("redo function", () => {
-    it("should work correctly", () => {
-      wrapReactive(() => {
-        const [value, setValue, { redo, isRedoPossible }] =
-          createUndoRedoSignal(1);
-
-        expect(value()).toBe(1);
-        expect(isRedoPossible()).toBe(false);
-
-        redo();
-
-        expect(value()).toBe(1);
-        expect(isRedoPossible()).toBe(false);
-
-        setValue(2);
-
-        expect(value()).toBe(2);
-        expect(isRedoPossible()).toBe(false);
-      });
-    });
-
-    it("should work correctly with undo", () => {
-      wrapReactive(() => {
-        const [
-          value,
-          setValue,
-          { redo, undo, isRedoPossible, isUndoPossible },
-        ] = createUndoRedoSignal(1);
+          { undo, isRedoPossible, isUndoPossible, historyReactiveIterator, size },
+        ] = createUndoRedoSignal(1, { historyLength: 3 });
 
         expect(value()).toBe(1);
         expect(isRedoPossible()).toBe(false);
@@ -153,23 +105,115 @@ describe("createUndoRedoSignal", () => {
         expect(isUndoPossible()).toBe(false);
 
         setValue(2);
+        setValue(3);
+        setValue(4);
 
-        expect(value()).toBe(2);
+        expect(value()).toBe(4);
         expect(isRedoPossible()).toBe(false);
         expect(isUndoPossible()).toBe(true);
 
         undo();
 
-        expect(value()).toBe(1);
+        expect(value()).toBe(3);
         expect(isRedoPossible()).toBe(true);
-        expect(isUndoPossible()).toBe(false);
+        expect(isUndoPossible()).toBe(true);
 
-        redo();
+        setValue(5);
 
-        expect(value()).toBe(2);
+        expect(value()).toBe(5);
         expect(isRedoPossible()).toBe(false);
         expect(isUndoPossible()).toBe(true);
+        expect(size()).toBe(3)
+
+        const history = [];
+        for (const item of historyReactiveIterator()) history.push(item);
+
+        expect(history).toStrictEqual([2, 3, 5]);
       });
+    });
+  });
+});
+
+describe("clearHistory method", () => {
+  it("should work correctly", () => {
+    wrapReactive(() => {
+      const [
+        value,
+        setValue,
+        { clearHistory, isUndoPossible, isRedoPossible, size },
+      ] = createUndoRedoSignal(1);
+
+      expect(value()).toBe(1);
+
+      setValue(2);
+
+      expect(value()).toBe(2);
+      expect(isUndoPossible()).toBe(true);
+      expect(isRedoPossible()).toBe(false);
+
+      clearHistory();
+
+      expect(value()).toBe(2);
+      expect(isUndoPossible()).toBe(false);
+      expect(isRedoPossible()).toBe(false);
+      expect(size()).toBe(1);
+    });
+  });
+});
+
+describe("redo function", () => {
+  it("should work correctly", () => {
+    wrapReactive(() => {
+      const [value, setValue, { redo, isRedoPossible }] =
+        createUndoRedoSignal(1);
+
+      expect(value()).toBe(1);
+      expect(isRedoPossible()).toBe(false);
+
+      redo();
+
+      expect(value()).toBe(1);
+      expect(isRedoPossible()).toBe(false);
+
+      setValue(2);
+
+      expect(value()).toBe(2);
+      expect(isRedoPossible()).toBe(false);
+    });
+  });
+
+  it("should work correctly with undo", () => {
+    wrapReactive(() => {
+      const [value, setValue, { redo, undo, isRedoPossible, isUndoPossible }] =
+        createUndoRedoSignal(1);
+
+      expect(value()).toBe(1);
+      expect(isRedoPossible()).toBe(false);
+      expect(isUndoPossible()).toBe(false);
+
+      undo();
+
+      expect(value()).toBe(1);
+      expect(isRedoPossible()).toBe(false);
+      expect(isUndoPossible()).toBe(false);
+
+      setValue(2);
+
+      expect(value()).toBe(2);
+      expect(isRedoPossible()).toBe(false);
+      expect(isUndoPossible()).toBe(true);
+
+      undo();
+
+      expect(value()).toBe(1);
+      expect(isRedoPossible()).toBe(true);
+      expect(isUndoPossible()).toBe(false);
+
+      redo();
+
+      expect(value()).toBe(2);
+      expect(isRedoPossible()).toBe(false);
+      expect(isUndoPossible()).toBe(true);
     });
   });
 
