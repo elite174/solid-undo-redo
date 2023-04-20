@@ -13,14 +13,26 @@ const buttonClass = (enabled = true) =>
 const HISTORY_LENGTH = 5;
 
 const App: Component = () => {
-  const [value, setValue, api] = createUndoRedoSignal(1, {
+  const [
+    value,
+    setValue,
+    {
+      undo,
+      redo,
+      isRedoPossible,
+      isUndoPossible,
+      size,
+      clearHistory,
+      reactiveHistoryGenerator,
+    },
+  ] = createUndoRedoSignal(1, {
     historyLength: HISTORY_LENGTH,
   });
 
   const historyItems = () => {
     const items = [];
 
-    for (const value of api.historyReactiveIterator()) {
+    for (const value of reactiveHistoryGenerator()) {
       items.push(value);
     }
 
@@ -37,7 +49,11 @@ const App: Component = () => {
         <br />
         The history is list-based, so it works in O(1)!
         <br />
-        <a class="text-2xl underline" href="https://github.com/elite174/solid-undo-redo" target="_blank">
+        <a
+          class="text-2xl underline"
+          href="https://github.com/elite174/solid-undo-redo"
+          target="_blank"
+        >
           Github
         </a>
       </p>
@@ -64,19 +80,13 @@ const App: Component = () => {
           </span>
         </div>
         <div class="flex gap-2">
-          <button
-            class={buttonClass(api.isUndoPossible())}
-            onClick={() => api.undo()}
-          >
+          <button class={buttonClass(isUndoPossible())} onClick={() => undo()}>
             Undo
           </button>
-          <button
-            class={buttonClass(api.isRedoPossible())}
-            onClick={() => api.redo()}
-          >
+          <button class={buttonClass(isRedoPossible())} onClick={() => redo()}>
             Redo
           </button>
-          <button class={buttonClass()} onClick={() => api.clearHistory()}>
+          <button class={buttonClass()} onClick={() => clearHistory()}>
             Clear history
           </button>
         </div>

@@ -91,7 +91,13 @@ describe("createUndoRedoSignal", () => {
         const [
           value,
           setValue,
-          { undo, isRedoPossible, isUndoPossible, historyReactiveIterator, size },
+          {
+            undo,
+            isRedoPossible,
+            isUndoPossible,
+            reactiveHistoryGenerator,
+            size,
+          },
         ] = createUndoRedoSignal(1, { historyLength: 3 });
 
         expect(value()).toBe(1);
@@ -123,10 +129,10 @@ describe("createUndoRedoSignal", () => {
         expect(value()).toBe(5);
         expect(isRedoPossible()).toBe(false);
         expect(isUndoPossible()).toBe(true);
-        expect(size()).toBe(3)
+        expect(size()).toBe(3);
 
         const history = [];
-        for (const item of historyReactiveIterator()) history.push(item);
+        for (const item of reactiveHistoryGenerator()) history.push(item);
 
         expect(history).toStrictEqual([2, 3, 5]);
       });

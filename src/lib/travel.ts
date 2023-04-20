@@ -2,7 +2,14 @@ import type { Accessor, SignalOptions } from "solid-js";
 import { batch, createMemo, createSignal, untrack } from "solid-js";
 
 export interface UndoRedoSignalOptions<T> {
+  /**
+   * Max history length
+   * @default 100
+   */
   historyLength?: number;
+  /**
+   * Solid signal options
+   */
   signalOptions?: SignalOptions<T> | undefined;
 }
 
@@ -10,15 +17,27 @@ export type Setter<T> = (<U extends T>(value: (prev: T) => U) => U) &
   (<U extends T>(value: Exclude<U, Function>) => U);
 
 export type UndoRedoSignal<T> = [
+  /** Reactive accessor for the value */
   value: Accessor<T>,
+  /** Setter function for the value */
   setValue: Setter<T>,
   api: {
+    /** Undo callback */
     undo: VoidFunction;
+    /** Redo callback */
     redo: VoidFunction;
+    /** ClearHistory callback */
     clearHistory: VoidFunction;
     isUndoPossible: Accessor<boolean>;
     isRedoPossible: Accessor<boolean>;
-    historyReactiveIterator: () => Generator<T, void, unknown>;
+    /**
+     * Reactive generator function which is retriggered
+     * when history changes
+     */
+    reactiveHistoryGenerator: () => Generator<T, void, unknown>;
+    /**
+     * Current size of the history
+     */
     size: Accessor<number>;
   }
 ];
@@ -149,7 +168,7 @@ export const createUndoRedoSignal = <T>(
     });
   };
 
-  function* historyReactiveIterator() {
+  function* reactiveHistoryGenerator() {
     // make iterator reactive
     iteratorSubscription();
 
@@ -173,7 +192,7 @@ export const createUndoRedoSignal = <T>(
       clearHistory,
       isUndoPossible: () => Boolean(currentNodePointer().prev),
       isRedoPossible: () => Boolean(currentNodePointer().next),
-      historyReactiveIterator,
+      reactiveHistoryGenerator,
       size,
     },
   ];

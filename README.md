@@ -1,34 +1,105 @@
+# solid-undo-redo
+
+A small library for undo-redo operations!
+Make signals with history.
+The implementation is list-based, so it works in **O(1)** instead of O(n)!
+
+## Installation
+
+`npm i solid-undo-redo`
+
+`pnpm add solid-undo-redo`
+
+`yarn add solid-undo-redo`
+
 ## Usage
 
-Those templates dependencies are maintained via [pnpm](https://pnpm.io) via `pnpm up -Lri`.
+```tsx
+import {createUndoRedo} from 'solid-undo-redo';
 
-This is the reason you see a `pnpm-lock.yaml`. That being said, any package manager will work. This file can be safely be removed once you clone a template.
+...
 
-```bash
-$ npm install # or pnpm install or yarn install
+const [
+    value,
+    setValue,
+    {
+      undo,
+      redo,
+      isRedoPossible,
+      isUndoPossible,
+      size,
+      clearHistory,
+      reactiveHistoryGenerator,
+    },
+  ] = createUndoRedoSignal<number>(1, {
+    // you can pass custom length
+    historyLength: HISTORY_LENGTH,
+  });
+
+// To convert history items to an array you can use reactive generator like this:
+const historyItems = () => {
+    const items: number[] = [];
+
+    for (const value of api.reactiveHistoryGenerator()) {
+      items.push(value);
+    }
+
+    return items;
+};
+
+...
+
+//somewhere in JSX:
+
+return <div>History: {historyItems().join(', ')}</div>
 ```
 
-### Learn more on the [Solid Website](https://solidjs.com) and come chat with us on our [Discord](https://discord.com/invite/solidjs)
+## Params
 
-## Available Scripts
+```tsx
+declare function createUndoRedoSignal<T>(
+  initialValue: T,
+  options?: UndoRedoSignalOptions<T>
+): UndoRedoSignal<T>;
 
-In the project directory, you can run:
+interface UndoRedoSignalOptions<T> {
+  /**
+   * Max history length
+   * @default 100
+   */
+  historyLength?: number;
+  /**
+   * Solid signal options
+   */
+  signalOptions?: SignalOptions<T> | undefined;
+}
 
-### `npm dev` or `npm start`
+type UndoRedoSignal<T> = [
+  /** Reactive accessor for the value */
+  value: Accessor<T>,
+  /** Setter function for the value */
+  setValue: Setter<T>,
+  api: {
+    /** Undo callback */
+    undo: VoidFunction;
+    /** Redo callback */
+    redo: VoidFunction;
+    /** ClearHistory callback */
+    clearHistory: VoidFunction;
+    isUndoPossible: Accessor<boolean>;
+    isRedoPossible: Accessor<boolean>;
+    /**
+     * Reactive generator function which is retriggered
+     * when history changes
+     */
+    reactiveHistoryGenerator: () => Generator<T, void, unknown>;
+    /**
+     * Current size of the history
+     */
+    size: Accessor<number>;
+  }
+];
 
-Runs the app in the development mode.<br>
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
-
-The page will reload if you make edits.<br>
-
-### `npm run build`
-
-Builds the app for production to the `dist` folder.<br>
-It correctly bundles Solid in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.<br>
-Your app is ready to be deployed!
-
-## Deployment
-
-You can deploy the `dist` folder to any static host provider (netlify, surge, now, etc.)
+type Setter<T> = (<U extends T>(value: (prev: T) => U) => U) &
+  (<U extends T>(value: Exclude<U, Function>) => U);
+```
