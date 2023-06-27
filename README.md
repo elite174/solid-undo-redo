@@ -62,6 +62,9 @@ declare function createUndoRedoSignal<T>(
   options?: UndoRedoSignalOptions<T>
 ): UndoRedoSignal<T>;
 
+type OnUndoCallback<T> = (currentValue: T, previousValue: T) => void;
+type OnRedoCallback<T> = (currentValue: T, previousValue: T) => void;
+
 interface UndoRedoSignalOptions<T> {
   /**
    * Max history length
@@ -72,6 +75,8 @@ interface UndoRedoSignalOptions<T> {
    * Solid signal options
    */
   signalOptions?: SignalOptions<T> | undefined;
+  onUndo?: OnUndoCallback<T>;
+  onRedo?: OnRedoCallback<T>;
 }
 
 type UndoRedoSignal<T> = [
