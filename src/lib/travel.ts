@@ -1,6 +1,9 @@
 import type { Accessor, SignalOptions } from "solid-js";
 import { batch, createMemo, createSignal, untrack } from "solid-js";
 
+export type OnUndoCallback<T> = (currentValue: T, previousValue: T) => void;
+export type OnRedoCallback<T> = (currentValue: T, previousValue: T) => void;
+
 export interface UndoRedoSignalOptions<T> {
   /**
    * Max history length
@@ -11,6 +14,8 @@ export interface UndoRedoSignalOptions<T> {
    * Solid signal options
    */
   signalOptions?: SignalOptions<T> | undefined;
+  onUndo?: OnUndoCallback<T>;
+  onRedo?: OnRedoCallback<T>;
 }
 
 export type Setter<T> = (<U extends T>(value: (prev: T) => U) => U) &
@@ -145,6 +150,8 @@ export const createUndoRedoSignal = <T>(
 
     undoCount++;
     setCurrentNodePointer(prevPointer);
+
+    untrack(() => options?.onUndo?.(prevPointer.value, pointer.value));
   };
 
   const redo = () => {
@@ -155,6 +162,8 @@ export const createUndoRedoSignal = <T>(
 
     undoCount--;
     setCurrentNodePointer(nextPointer);
+
+    untrack(() => options?.onRedo?.(nextPointer.value, pointer.value));
   };
 
   const clearHistory = () => {

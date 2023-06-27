@@ -1,5 +1,5 @@
 import { createRoot } from "solid-js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vitest } from "vitest";
 
 import { createUndoRedoSignal } from "./travel";
 
@@ -222,44 +222,112 @@ describe("redo function", () => {
       expect(isUndoPossible()).toBe(true);
     });
   });
+});
 
-  describe("custom signal options option", () => {
-    it("should work with custom comparator function", () => {
-      wrapReactive(() => {
-        const [value, setValue, { isUndoPossible }] = createUndoRedoSignal(
-          "123",
-          {
-            signalOptions: { equals: (prev, next) => prev[0] === next[0] },
-          }
-        );
+describe("custom signal options option", () => {
+  it("should work with custom comparator function", () => {
+    wrapReactive(() => {
+      const [value, setValue, { isUndoPossible }] = createUndoRedoSignal(
+        "123",
+        {
+          signalOptions: { equals: (prev, next) => prev[0] === next[0] },
+        }
+      );
 
-        expect(value()).toBe("123");
-        expect(isUndoPossible()).toBe(false);
+      expect(value()).toBe("123");
+      expect(isUndoPossible()).toBe(false);
 
-        setValue("12355");
+      setValue("12355");
 
-        expect(value()).toBe("123");
-        expect(isUndoPossible()).toBe(false);
+      expect(value()).toBe("123");
+      expect(isUndoPossible()).toBe(false);
+    });
+  });
+
+  it("should keep same values if equals === false", () => {
+    wrapReactive(() => {
+      const [value, setValue, { isUndoPossible }] = createUndoRedoSignal(
+        "123",
+        {
+          signalOptions: { equals: false },
+        }
+      );
+
+      expect(value()).toBe("123");
+      expect(isUndoPossible()).toBe(false);
+
+      setValue("123");
+
+      expect(value()).toBe("123");
+      expect(isUndoPossible()).toBe(true);
+    });
+  });
+});
+
+describe.only("onUndo, onRedo callbacks", () => {
+  it("should work correctly", () => {
+    wrapReactive(() => {
+      const onUndo = vitest.fn();
+      const onRedo = vitest.fn();
+
+      const [_, setValue, { undo, redo }] = createUndoRedoSignal<number>(1, {
+        onUndo,
+        onRedo,
       });
+
+      setValue(2);
+
+      undo();
+
+      expect(onUndo).toHaveBeenCalledTimes(1);
+      expect(onUndo).toHaveBeenCalledWith(1, 2);
+
+      redo();
+
+      expect(onRedo).toHaveBeenCalledOnce();
+      expect(onRedo).toHaveBeenCalledWith(2, 1);
+    });
+  });
+
+  it("should work in edge cases", () => {
+    wrapReactive(() => {
+      const onUndo = vitest.fn();
+      const onRedo = vitest.fn();
+
+      const [_, _1, { undo, redo }] = createUndoRedoSignal<number>(1, {
+        onUndo,
+        onRedo,
+      });
+
+      undo();
+
+      expect(onUndo).toHaveBeenCalledTimes(0);
+
+      redo();
+
+      expect(onRedo).toHaveBeenCalledTimes(0);
     });
 
-    it("should keep same values if equals === false", () => {
-      wrapReactive(() => {
-        const [value, setValue, { isUndoPossible }] = createUndoRedoSignal(
-          "123",
-          {
-            signalOptions: { equals: false },
-          }
-        );
+    wrapReactive(() => {
+      const onUndo = vitest.fn();
+      const onRedo = vitest.fn();
 
-        expect(value()).toBe("123");
-        expect(isUndoPossible()).toBe(false);
-
-        setValue("123");
-
-        expect(value()).toBe("123");
-        expect(isUndoPossible()).toBe(true);
+      const [_, setValue, { undo }] = createUndoRedoSignal<number>(1, {
+        onUndo,
+        onRedo,
       });
+
+      undo();
+
+      expect(onUndo).toHaveBeenCalledTimes(0);
+
+      setValue(2);
+
+      undo();
+      undo();
+
+      expect(onUndo).toHaveBeenCalledTimes(1);
+      expect(onUndo).toHaveBeenCalledWith(1, 2);
     });
   });
 });
