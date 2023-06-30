@@ -91,13 +91,7 @@ describe("createUndoRedoSignal", () => {
         const [
           value,
           setValue,
-          {
-            undo,
-            isRedoPossible,
-            isUndoPossible,
-            reactiveHistoryGenerator,
-            size,
-          },
+          { undo, isRedoPossible, isUndoPossible, createHistoryIterator, size },
         ] = createUndoRedoSignal(1, { historyLength: 3 });
 
         expect(value()).toBe(1);
@@ -132,7 +126,7 @@ describe("createUndoRedoSignal", () => {
         expect(size()).toBe(3);
 
         const history = [];
-        for (const item of reactiveHistoryGenerator()) history.push(item);
+        for (const item of createHistoryIterator()) history.push(item);
 
         expect(history).toStrictEqual([2, 3, 5]);
       });
@@ -264,7 +258,7 @@ describe("custom signal options option", () => {
   });
 });
 
-describe.only("onUndo, onRedo callbacks", () => {
+describe("onUndo, onRedo callbacks", () => {
   it("should work correctly", () => {
     wrapReactive(() => {
       const onUndo = vitest.fn();
@@ -328,6 +322,102 @@ describe.only("onUndo, onRedo callbacks", () => {
 
       expect(onUndo).toHaveBeenCalledTimes(1);
       expect(onUndo).toHaveBeenCalledWith(1, 2);
+    });
+  });
+});
+
+describe("Late value set", () => {
+  it("should show correct size", () => {
+    wrapReactive(() => {
+      const [value, setValue, { size }] = createUndoRedoSignal();
+
+      expect(size()).toBe(0);
+    });
+  });
+
+  it("should correctly increase size after first set", () => {
+    wrapReactive(() => {
+      const [value, setValue, { size }] = createUndoRedoSignal();
+
+      expect(size()).toBe(0);
+
+      setValue(1);
+
+      expect(size()).toBe(1);
+    });
+
+    wrapReactive(() => {
+      const [value, setValue, { size }] = createUndoRedoSignal();
+
+      expect(size()).toBe(0);
+
+      setValue(undefined);
+
+      expect(size()).toBe(0);
+    });
+
+    wrapReactive(() => {
+      const [value, setValue, { size }] = createUndoRedoSignal(undefined, {
+        signalOptions: { equals: false },
+      });
+
+      expect(size()).toBe(0);
+
+      setValue(undefined);
+
+      expect(size()).toBe(1);
+    });
+  });
+
+  it("should correctly show possibilities", () => {
+    wrapReactive(() => {
+      const [value, setValue, { size, isRedoPossible, isUndoPossible }] =
+        createUndoRedoSignal();
+
+      expect(size()).toBe(0);
+
+      expect(isRedoPossible()).toBe(false);
+      expect(isUndoPossible()).toBe(false);
+    });
+
+    wrapReactive(() => {
+      const [value, setValue, { size, isRedoPossible, isUndoPossible }] =
+        createUndoRedoSignal();
+
+      expect(size()).toBe(0);
+
+      setValue(1);
+
+      expect(size()).toBe(1);
+
+      expect(isRedoPossible()).toBe(false);
+      expect(isUndoPossible()).toBe(false);
+    });
+  });
+
+  it("should correctly reset history", () => {
+    wrapReactive(() => {
+      const [value, setValue, { size, clearHistory }] = createUndoRedoSignal();
+
+      expect(size()).toBe(0);
+
+      setValue(1);
+
+      expect(size()).toBe(1);
+
+      clearHistory();
+
+      expect(size()).toBe(1);
+    });
+
+    wrapReactive(() => {
+      const [value, setValue, { size, clearHistory }] = createUndoRedoSignal();
+
+      expect(size()).toBe(0);
+
+      clearHistory();
+
+      expect(size()).toBe(0);
     });
   });
 });
