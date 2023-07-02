@@ -1,4 +1,4 @@
-import type { Accessor, SignalOptions } from "solid-js";
+import type { Accessor, Setter, SignalOptions } from "solid-js";
 import { batch, createMemo, createSignal, untrack } from "solid-js";
 
 export type OnUndoCallback<T> = (currentValue: T, previousValue: T) => void;
@@ -18,14 +18,11 @@ export interface UndoRedoSignalOptions<T> {
   onRedo?: OnRedoCallback<T>;
 }
 
-export type Setter<T> = (<U extends T>(value: (prev: T) => U) => U) &
-  (<U extends T>(value: Exclude<U, Function>) => U);
-
 export type UndoRedoSignal<T> = [
   /** Reactive accessor for the value */
-  value: Accessor<T>,
+  get: Accessor<T>,
   /** Setter function for the value */
-  setValue: Setter<T>,
+  set: Setter<T>,
   api: {
     /** Undo callback */
     undo: VoidFunction;
@@ -39,7 +36,7 @@ export type UndoRedoSignal<T> = [
      * Reactive generator function which is retriggered
      * when history changes
      */
-    reactiveHistoryGenerator: () => Generator<T, void, unknown>;
+    createHistoryIterator: () => Generator<T, void, unknown>;
     /**
      * Current size of the history
      */
@@ -68,20 +65,28 @@ const DEFAULT_OPTIONS = {
 const INITIAL_HISTORY_SIZE = 1;
 const DEFAULT_COMPARATOR = (prev: unknown, next: unknown) => prev === next;
 
-export const createUndoRedoSignal = <T>(
+export function createUndoRedoSignal<T>(): UndoRedoSignal<T | undefined>;
+export function createUndoRedoSignal<T>(
   initialValue: T,
   options?: UndoRedoSignalOptions<T>
-): UndoRedoSignal<T> => {
+): UndoRedoSignal<T>;
+export function createUndoRedoSignal<T>(
+  initialValue?: T,
+  options?: UndoRedoSignalOptions<T | undefined>
+): UndoRedoSignal<T | undefined> {
   const resolvedOptions = { ...DEFAULT_OPTIONS, ...options };
   const equals = resolvedOptions.signalOptions?.equals ?? DEFAULT_COMPARATOR;
 
-  let head = new ListNode<T>(initialValue);
+  let head = new ListNode<T | undefined>(initialValue);
+  let isFirstSetPerformed = initialValue !== undefined;
 
   const [currentNodePointer, setCurrentNodePointer] = createSignal(head);
   const [iteratorSubscription, triggerIterator] = createSignal(undefined, {
     equals: false,
   });
-  const [size, setSize] = createSignal(INITIAL_HISTORY_SIZE);
+  const [size, setSize] = createSignal(
+    initialValue === undefined ? 0 : INITIAL_HISTORY_SIZE
+  );
 
   let undoCount = 0;
   let maxHistoryLength = resolvedOptions.historyLength;
@@ -96,8 +101,17 @@ export const createUndoRedoSignal = <T>(
   });
 
   const addLast = (value: T) => {
-    const newItem = new ListNode<T>(value);
     const p = untrack(currentNodePointer);
+
+    if (!isFirstSetPerformed) {
+      isFirstSetPerformed = true;
+      p.value = value;
+      setSize(INITIAL_HISTORY_SIZE);
+
+      return;
+    }
+
+    const newItem = new ListNode<T | undefined>(value);
 
     // If there's something ahead
     // we need to cut the list from the current pointer
@@ -124,15 +138,15 @@ export const createUndoRedoSignal = <T>(
     } else setSize((s) => s + 1);
   };
 
-  const setValue: Setter<T> = (newValue) => {
+  const setValue: Setter<T | undefined> = (newValue?: unknown) => {
     const prevValue = untrack(currentNodePointer).value;
     const nextValue =
-      newValue instanceof Function
+      typeof newValue === "function"
         ? untrack(() => newValue(prevValue))
         : newValue;
 
     if (typeof equals === "function" ? equals(prevValue, nextValue) : equals)
-      return prevValue as any;
+      return prevValue;
 
     batch(() => {
       addLast(nextValue);
@@ -171,17 +185,17 @@ export const createUndoRedoSignal = <T>(
     undoCount = 0;
 
     batch(() => {
-      setSize(INITIAL_HISTORY_SIZE);
+      setSize(isFirstSetPerformed ? INITIAL_HISTORY_SIZE : 0);
       triggerIterator();
       setCurrentNodePointer(head);
     });
   };
 
-  function* reactiveHistoryGenerator() {
+  function* createHistoryIterator() {
     // make iterator reactive
     iteratorSubscription();
 
-    let currentNode: ListNode<T> | null = head;
+    let currentNode: ListNode<T | undefined> | null = head;
 
     while (currentNode !== null) {
       yield currentNode.value;
@@ -201,8 +215,8 @@ export const createUndoRedoSignal = <T>(
       clearHistory,
       isUndoPossible: () => Boolean(currentNodePointer().prev),
       isRedoPossible: () => Boolean(currentNodePointer().next),
-      reactiveHistoryGenerator,
+      createHistoryIterator,
       size,
     },
   ];
-};
+}
