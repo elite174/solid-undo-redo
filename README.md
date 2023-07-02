@@ -29,7 +29,7 @@ const [
       isUndoPossible,
       size,
       clearHistory,
-      reactiveHistoryGenerator,
+      createHistoryIterator,
     },
   ] = createUndoRedoSignal<number>(1, {
     // you can pass custom length
@@ -40,7 +40,7 @@ const [
 const historyItems = () => {
     const items: number[] = [];
 
-    for (const value of api.reactiveHistoryGenerator()) {
+    for (const value of createHistoryIterator()) {
       items.push(value);
     }
 
