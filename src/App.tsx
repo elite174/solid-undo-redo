@@ -23,7 +23,7 @@ const App: Component = () => {
       isUndoPossible,
       size,
       clearHistory,
-      reactiveHistoryGenerator,
+      createHistoryIterator,
     },
   ] = createUndoRedoSignal(1, {
     historyLength: HISTORY_LENGTH,
@@ -32,7 +32,7 @@ const App: Component = () => {
   const historyItems = () => {
     const items = [];
 
-    for (const value of reactiveHistoryGenerator()) {
+    for (const value of createHistoryIterator()) {
       items.push(value);
     }
 

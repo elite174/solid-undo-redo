@@ -57,10 +57,10 @@ return <div>History: {historyItems().join(', ')}</div>
 ## Params
 
 ```tsx
-declare function createUndoRedoSignal<T>(
-  initialValue: T,
-  options?: UndoRedoSignalOptions<T>
-): UndoRedoSignal<T>;
+function createUndoRedoSignal<T>(
+  initialValue?: T,
+  options?: UndoRedoSignalOptions<T | undefined>
+): UndoRedoSignal<T | undefined>;
 
 type OnUndoCallback<T> = (currentValue: T, previousValue: T) => void;
 type OnRedoCallback<T> = (currentValue: T, previousValue: T) => void;
@@ -81,9 +81,9 @@ interface UndoRedoSignalOptions<T> {
 
 type UndoRedoSignal<T> = [
   /** Reactive accessor for the value */
-  value: Accessor<T>,
+  get: Accessor<T>,
   /** Setter function for the value */
-  setValue: Setter<T>,
+  set: Setter<T>,
   api: {
     /** Undo callback */
     undo: VoidFunction;
@@ -97,14 +97,11 @@ type UndoRedoSignal<T> = [
      * Reactive generator function which is retriggered
      * when history changes
      */
-    reactiveHistoryGenerator: () => Generator<T, void, unknown>;
+    createHistoryIterator: () => Generator<T, void, unknown>;
     /**
      * Current size of the history
      */
     size: Accessor<number>;
   }
 ];
-
-type Setter<T> = (<U extends T>(value: (prev: T) => U) => U) &
-  (<U extends T>(value: Exclude<U, Function>) => U);
 ```
