@@ -264,10 +264,11 @@ describe("onUndo, onRedo callbacks", () => {
       const onUndo = vitest.fn();
       const onRedo = vitest.fn();
 
-      const [_, setValue, { undo, redo }] = createUndoRedoSignal<number>(1, {
-        onUndo,
-        onRedo,
-      });
+      const [_, setValue, { undo, redo, registerCallback, dispose }] =
+        createUndoRedoSignal<number>(1);
+
+      registerCallback("undo", onUndo);
+      registerCallback("redo", onRedo);
 
       setValue(2);
 
@@ -280,6 +281,44 @@ describe("onUndo, onRedo callbacks", () => {
 
       expect(onRedo).toHaveBeenCalledOnce();
       expect(onRedo).toHaveBeenCalledWith(2, 1);
+
+      dispose();
+    });
+
+    wrapReactive(() => {
+      const onUndo = vitest.fn();
+      const onRedo = vitest.fn();
+
+      const [_, setValue, { undo, redo, registerCallback, dispose }] =
+        createUndoRedoSignal<number>(1);
+
+      registerCallback("undo", onUndo);
+      registerCallback("redo", onRedo);
+
+      setValue(2);
+      setValue(3);
+
+      undo();
+
+      expect(onUndo).toHaveBeenCalledTimes(1);
+      expect(onUndo).toHaveBeenCalledWith(2, 3);
+
+      undo();
+
+      expect(onUndo).toHaveBeenCalledTimes(2);
+      expect(onUndo).toHaveBeenCalledWith(1, 2);
+
+      redo();
+
+      expect(onRedo).toHaveBeenCalledTimes(1);
+      expect(onRedo).toHaveBeenCalledWith(2, 1);
+
+      redo();
+
+      expect(onRedo).toHaveBeenCalledTimes(2);
+      expect(onRedo).toHaveBeenCalledWith(3, 2);
+
+      dispose();
     });
   });
 
@@ -288,10 +327,11 @@ describe("onUndo, onRedo callbacks", () => {
       const onUndo = vitest.fn();
       const onRedo = vitest.fn();
 
-      const [_, _1, { undo, redo }] = createUndoRedoSignal<number>(1, {
-        onUndo,
-        onRedo,
-      });
+      const [_, _1, { undo, redo, registerCallback, dispose }] =
+        createUndoRedoSignal<number>(1);
+
+      registerCallback("undo", onUndo);
+      registerCallback("redo", onRedo);
 
       undo();
 
@@ -300,16 +340,19 @@ describe("onUndo, onRedo callbacks", () => {
       redo();
 
       expect(onRedo).toHaveBeenCalledTimes(0);
+
+      dispose();
     });
 
     wrapReactive(() => {
       const onUndo = vitest.fn();
       const onRedo = vitest.fn();
 
-      const [_, setValue, { undo }] = createUndoRedoSignal<number>(1, {
-        onUndo,
-        onRedo,
-      });
+      const [_, setValue, { undo, registerCallback, dispose }] =
+        createUndoRedoSignal<number>(1);
+
+      registerCallback("undo", onUndo);
+      registerCallback("redo", onRedo);
 
       undo();
 
@@ -322,6 +365,104 @@ describe("onUndo, onRedo callbacks", () => {
 
       expect(onUndo).toHaveBeenCalledTimes(1);
       expect(onUndo).toHaveBeenCalledWith(1, 2);
+
+      dispose();
+    });
+  });
+});
+
+describe("Undo/redo callbacks", () => {
+  it("should register callbacks", () => {
+    wrapReactive(() => {
+      const onUndo = vitest.fn();
+      const onRedo = vitest.fn();
+
+      const [v, setV, { undo, redo, registerCallback, dispose }] =
+        createUndoRedoSignal();
+
+      registerCallback("undo", onUndo);
+      registerCallback("redo", onRedo);
+
+      setV(1);
+      setV(2);
+
+      undo();
+      redo();
+
+      expect(onUndo).toHaveBeenCalledTimes(1);
+      expect(onRedo).toHaveBeenCalledTimes(1);
+
+      dispose();
+    });
+  });
+
+  it("should remove callbacks", () => {
+    wrapReactive(() => {
+      const onUndo = vitest.fn();
+      const onRedo = vitest.fn();
+
+      const [
+        v,
+        setV,
+        { undo, redo, registerCallback, dispose, removeCallback },
+      ] = createUndoRedoSignal();
+
+      registerCallback("undo", onUndo);
+      registerCallback("redo", onRedo);
+
+      setV(1);
+      setV(2);
+
+      undo();
+      redo();
+
+      expect(onUndo).toHaveBeenCalledTimes(1);
+      expect(onRedo).toHaveBeenCalledTimes(1);
+
+      removeCallback("undo", onUndo);
+      removeCallback("redo", onRedo);
+
+      undo();
+      redo();
+
+      expect(onUndo).toHaveBeenCalledTimes(1);
+      expect(onRedo).toHaveBeenCalledTimes(1);
+
+      dispose();
+    });
+  });
+});
+
+describe("Dispose function", () => {
+  it("should work correctly", () => {
+    wrapReactive(() => {
+      const onUndo = vitest.fn();
+      const onRedo = vitest.fn();
+
+      const [v, setV, { undo, redo, size, registerCallback, dispose }] =
+        createUndoRedoSignal();
+
+      registerCallback("undo", onUndo);
+      registerCallback("redo", onRedo);
+
+      setV(1);
+      setV(2);
+
+      undo();
+      redo();
+
+      expect(size()).toBe(2);
+      expect(onUndo).toHaveBeenCalledTimes(1);
+      expect(onRedo).toHaveBeenCalledTimes(1);
+
+      dispose();
+
+      undo();
+      redo();
+
+      expect(size()).toBe(1);
+      expect(onUndo).toHaveBeenCalledTimes(1);
+      expect(onRedo).toHaveBeenCalledTimes(1);
     });
   });
 });
@@ -418,6 +559,121 @@ describe("Late value set", () => {
       clearHistory();
 
       expect(size()).toBe(0);
+    });
+  });
+
+  describe("onUndo, onRedo callbacks", () => {
+    it("should work correctly", () => {
+      wrapReactive(() => {
+        const onUndo = vitest.fn();
+        const onRedo = vitest.fn();
+
+        const [_, setValue, { undo, redo, registerCallback, dispose }] =
+          createUndoRedoSignal<number | undefined>(undefined);
+
+        registerCallback("undo", onUndo);
+        registerCallback("redo", onRedo);
+
+        setValue(1);
+
+        undo();
+
+        expect(onUndo).toHaveBeenCalledTimes(0);
+
+        setValue(2);
+        undo();
+
+        expect(onUndo).toHaveBeenCalledTimes(1);
+        expect(onUndo).toHaveBeenCalledWith(1, 2);
+
+        redo();
+
+        expect(onRedo).toHaveBeenCalledTimes(1);
+        expect(onRedo).toHaveBeenCalledWith(2, 1);
+
+        dispose();
+      });
+
+      wrapReactive(() => {
+        const onUndo = vitest.fn();
+        const onRedo = vitest.fn();
+
+        const [_, setValue, { undo, redo, registerCallback, dispose }] =
+          createUndoRedoSignal<number | undefined>(undefined);
+
+        registerCallback("undo", onUndo);
+        registerCallback("redo", onRedo);
+
+        setValue(1);
+        setValue(2);
+
+        undo();
+
+        expect(onUndo).toHaveBeenCalledTimes(1);
+        expect(onUndo).toHaveBeenCalledWith(1, 2);
+
+        undo();
+
+        expect(onUndo).toHaveBeenCalledTimes(1);
+
+        redo();
+
+        expect(onRedo).toHaveBeenCalledTimes(1);
+        expect(onRedo).toHaveBeenCalledWith(2, 1);
+
+        redo();
+
+        expect(onRedo).toHaveBeenCalledTimes(1);
+
+        dispose();
+      });
+    });
+
+    it("should work in edge cases", () => {
+      wrapReactive(() => {
+        const onUndo = vitest.fn();
+        const onRedo = vitest.fn();
+
+        const [_, _1, { undo, redo, registerCallback, dispose }] =
+          createUndoRedoSignal<number | undefined>(undefined);
+
+        registerCallback("undo", onUndo);
+        registerCallback("redo", onRedo);
+
+        undo();
+
+        expect(onUndo).toHaveBeenCalledTimes(0);
+
+        redo();
+
+        expect(onRedo).toHaveBeenCalledTimes(0);
+
+        dispose();
+      });
+
+      wrapReactive(() => {
+        const onUndo = vitest.fn();
+        const onRedo = vitest.fn();
+
+        const [_, setValue, { undo, registerCallback, dispose }] =
+          createUndoRedoSignal<number | undefined>(undefined);
+
+        registerCallback("undo", onUndo);
+        registerCallback("redo", onRedo);
+
+        undo();
+
+        expect(onUndo).toHaveBeenCalledTimes(0);
+
+        setValue(2);
+
+        undo();
+        undo();
+
+        expect(onUndo).toHaveBeenCalledTimes(0);
+
+        dispose();
+      });
     });
   });
 });

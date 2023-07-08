@@ -1,9 +1,6 @@
 import type { Accessor, Setter, SignalOptions } from "solid-js";
 import { batch, createMemo, createSignal, untrack } from "solid-js";
 
-export type OnUndoCallback<T> = (currentValue: T, previousValue: T) => void;
-export type OnRedoCallback<T> = (currentValue: T, previousValue: T) => void;
-
 export interface UndoRedoSignalOptions<T> {
   /**
    * Max history length
@@ -14,34 +11,55 @@ export interface UndoRedoSignalOptions<T> {
    * Solid signal options
    */
   signalOptions?: SignalOptions<T> | undefined;
-  onUndo?: OnUndoCallback<T>;
-  onRedo?: OnRedoCallback<T>;
 }
+
+type CallbackTypeMap<T> = {
+  undo: (currentValue: T, previousValue: T) => void;
+  redo: (currentValue: T, previousValue: T) => void;
+};
+
+export type UndoRedoAPI<T> = {
+  undo: VoidFunction;
+  redo: VoidFunction;
+
+  /** ClearHistory callback */
+  clearHistory: VoidFunction;
+  isUndoPossible: Accessor<boolean>;
+  isRedoPossible: Accessor<boolean>;
+
+  /**
+   * Reactive generator function which is retriggered
+   * when history changes
+   */
+  createHistoryIterator: () => Generator<T, void, unknown>;
+
+  /**
+   * Current size of the history
+   */
+  size: Accessor<number>;
+
+  /** Register callback for undo/redo */
+  registerCallback: <CallbackType extends keyof CallbackTypeMap<T>>(
+    type: CallbackType,
+    listener: CallbackTypeMap<T>[CallbackType]
+  ) => void;
+
+  /** Remove callback for undo/redo */
+  removeCallback: <CallbackType extends keyof CallbackTypeMap<T>>(
+    type: CallbackType,
+    listener: CallbackTypeMap<T>[CallbackType]
+  ) => void;
+
+  /** Clear all registered callbacks and history */
+  dispose: VoidFunction;
+};
 
 export type UndoRedoSignal<T> = [
   /** Reactive accessor for the value */
   get: Accessor<T>,
   /** Setter function for the value */
   set: Setter<T>,
-  api: {
-    /** Undo callback */
-    undo: VoidFunction;
-    /** Redo callback */
-    redo: VoidFunction;
-    /** ClearHistory callback */
-    clearHistory: VoidFunction;
-    isUndoPossible: Accessor<boolean>;
-    isRedoPossible: Accessor<boolean>;
-    /**
-     * Reactive generator function which is retriggered
-     * when history changes
-     */
-    createHistoryIterator: () => Generator<T, void, unknown>;
-    /**
-     * Current size of the history
-     */
-    size: Accessor<number>;
-  }
+  api: UndoRedoAPI<T>
 ];
 
 class ListNode<T> {
@@ -74,6 +92,15 @@ export function createUndoRedoSignal<T>(
   initialValue?: T,
   options?: UndoRedoSignalOptions<T | undefined>
 ): UndoRedoSignal<T | undefined> {
+  const callbackMap: {
+    [CallbackType in keyof CallbackTypeMap<T | undefined>]: Set<
+      CallbackTypeMap<T | undefined>[CallbackType]
+    >;
+  } = {
+    undo: new Set(),
+    redo: new Set(),
+  };
+
   const resolvedOptions = { ...DEFAULT_OPTIONS, ...options };
   const equals = resolvedOptions.signalOptions?.equals ?? DEFAULT_COMPARATOR;
 
@@ -165,7 +192,11 @@ export function createUndoRedoSignal<T>(
     undoCount++;
     setCurrentNodePointer(prevPointer);
 
-    untrack(() => options?.onUndo?.(prevPointer.value, pointer.value));
+    untrack(() =>
+      callbackMap.undo.forEach((callback) =>
+        callback(prevPointer.value, pointer.value)
+      )
+    );
   };
 
   const redo = () => {
@@ -177,7 +208,11 @@ export function createUndoRedoSignal<T>(
     undoCount--;
     setCurrentNodePointer(nextPointer);
 
-    untrack(() => options?.onRedo?.(nextPointer.value, pointer.value));
+    untrack(() =>
+      callbackMap.redo.forEach((callback) =>
+        callback(nextPointer.value, pointer.value)
+      )
+    );
   };
 
   const clearHistory = () => {
@@ -206,6 +241,26 @@ export function createUndoRedoSignal<T>(
     return;
   }
 
+  const registerCallback: UndoRedoAPI<T | undefined>["registerCallback"] = (
+    type,
+    callback
+  ) => {
+    callbackMap[type]?.add(callback);
+  };
+
+  const removeCallback: UndoRedoAPI<T | undefined>["removeCallback"] = (
+    type,
+    callback
+  ) => {
+    callbackMap[type]?.delete(callback);
+  };
+
+  const dispose = () => {
+    Object.values(callbackMap).forEach((set) => set.clear());
+
+    clearHistory();
+  };
+
   return [
     value,
     setValue,
@@ -217,6 +272,9 @@ export function createUndoRedoSignal<T>(
       isRedoPossible: () => Boolean(currentNodePointer().next),
       createHistoryIterator,
       size,
+      registerCallback,
+      removeCallback,
+      dispose,
     },
   ];
 }
