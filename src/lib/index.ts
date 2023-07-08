@@ -2,6 +2,5 @@ export { createUndoRedoSignal } from "./travel";
 export type {
   UndoRedoSignal,
   UndoRedoSignalOptions,
-  OnRedoCallback,
-  OnUndoCallback,
+  UndoRedoAPI,
 } from "./travel";

@@ -1,6 +1,11 @@
 import type { Accessor, Setter, SignalOptions } from "solid-js";
 import { batch, createMemo, createSignal, untrack } from "solid-js";
 
+type CallbackTypeMap<T> = {
+  undo: (currentValue: T, previousValue: T) => void;
+  redo: (currentValue: T, previousValue: T) => void;
+};
+
 export interface UndoRedoSignalOptions<T> {
   /**
    * Max history length
@@ -13,28 +18,26 @@ export interface UndoRedoSignalOptions<T> {
   signalOptions?: SignalOptions<T> | undefined;
 }
 
-type CallbackTypeMap<T> = {
-  undo: (currentValue: T, previousValue: T) => void;
-  redo: (currentValue: T, previousValue: T) => void;
-};
-
 export type UndoRedoAPI<T> = {
   undo: VoidFunction;
   redo: VoidFunction;
 
   /** ClearHistory callback */
   clearHistory: VoidFunction;
+
+  /** Reactive signal which indicates if undo operation is possible */
   isUndoPossible: Accessor<boolean>;
+  /** Reactive signal which indicates if redo operation is possible */
   isRedoPossible: Accessor<boolean>;
 
   /**
    * Reactive generator function which is retriggered
-   * when history changes
+   * when the history changes
    */
   createHistoryIterator: () => Generator<T, void, unknown>;
 
   /**
-   * Current size of the history
+   * Reactive signal which shows the current history length
    */
   size: Accessor<number>;
 
