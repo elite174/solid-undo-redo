@@ -158,6 +158,29 @@ describe("clearHistory method", () => {
       expect(isRedoPossible()).toBe(false);
       expect(size()).toBe(1);
     });
+
+    wrapReactive(() => {
+      const [
+        value,
+        setValue,
+        { clearHistory, isUndoPossible, isRedoPossible, size },
+      ] = createUndoRedoSignal(1);
+
+      expect(value()).toBe(1);
+
+      setValue(2);
+
+      expect(value()).toBe(2);
+      expect(isUndoPossible()).toBe(true);
+      expect(isRedoPossible()).toBe(false);
+
+      clearHistory(true);
+
+      expect(value()).toBe(undefined);
+      expect(isUndoPossible()).toBe(false);
+      expect(isRedoPossible()).toBe(false);
+      expect(size()).toBe(0);
+    });
   });
 });
 

@@ -22,8 +22,12 @@ export type UndoRedoAPI<T> = {
   undo: VoidFunction;
   redo: VoidFunction;
 
-  /** ClearHistory callback */
-  clearHistory: VoidFunction;
+  /**
+   * ClearHistory callback
+   * @param clearCurrentValue - clears current value if set to true
+   * @default false
+   */
+  clearHistory: (clearCurrentValue?: boolean) => void;
 
   /** Reactive signal which indicates if undo operation is possible */
   isUndoPossible: Accessor<boolean>;
@@ -218,12 +222,14 @@ export function createUndoRedoSignal<T>(
     );
   };
 
-  const clearHistory = () => {
-    head = new ListNode(untrack(currentNodePointer).value);
+  const clearHistory = (clearCurrentValue = false) => {
+    head = new ListNode(
+      clearCurrentValue ? undefined : untrack(currentNodePointer).value
+    );
     undoCount = 0;
 
     batch(() => {
-      setSize(isFirstSetPerformed ? INITIAL_HISTORY_SIZE : 0);
+      setSize(Boolean(head.value) ? INITIAL_HISTORY_SIZE : 0);
       triggerIterator();
       setCurrentNodePointer(head);
     });
