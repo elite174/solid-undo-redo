@@ -1,3 +1,6 @@
+# 1.3.2
+- Fixed bug with isUndoPossible after clearing history with flag = true
+
 # 1.3.1
 - Added support for `clearCurrentValue` flag to clearHistory method
 
