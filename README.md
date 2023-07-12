@@ -123,8 +123,12 @@ export type UndoRedoAPI<T> = {
   undo: VoidFunction;
   redo: VoidFunction;
 
-  /** ClearHistory callback */
-  clearHistory: VoidFunction;
+  /**
+   * ClearHistory callback
+   * @param clearCurrentValue - clears current value if set to true
+   * @default false
+   */
+  clearHistory: (clearCurrentValue?: boolean) => void;
 
   /** Reactive signal which indicates if undo operation is possible */
   isUndoPossible: Accessor<boolean>;

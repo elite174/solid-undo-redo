@@ -1,3 +1,6 @@
+# 1.3.1
+- Added support for `clearCurrentValue` flag to clearHistory method
+
 # 1.3.0
 - Removed `onUndo`/`onRedo` options for signal
 - Added ability to register multiple undo/redo callbacks with `registerCallback`
