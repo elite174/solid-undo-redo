@@ -112,7 +112,6 @@ export function createUndoRedoSignal<T>(
   const equals = resolvedOptions.signalOptions?.equals ?? DEFAULT_COMPARATOR;
 
   let head = new ListNode<T | undefined>(initialValue);
-  let isFirstSetPerformed = initialValue !== undefined;
 
   const [currentNodePointer, setCurrentNodePointer] = createSignal(head);
   const [iteratorSubscription, triggerIterator] = createSignal(undefined, {
@@ -130,6 +129,7 @@ export function createUndoRedoSignal<T>(
     maxHistoryLength = 100;
   }
 
+  // @TODO refactor for native get/set
   const value = createMemo(() => currentNodePointer().value, undefined, {
     name: resolvedOptions.signalOptions?.name,
   });
@@ -137,10 +137,15 @@ export function createUndoRedoSignal<T>(
   const addLast = (value: T) => {
     const p = untrack(currentNodePointer);
 
-    if (!isFirstSetPerformed) {
-      isFirstSetPerformed = true;
-      p.value = value;
-      setSize(INITIAL_HISTORY_SIZE);
+    if (p.value === undefined) {
+      const newHead = new ListNode(value);
+
+      head = newHead;
+
+      batch(() => {
+        setCurrentNodePointer(newHead);
+        setSize(INITIAL_HISTORY_SIZE);
+      });
 
       return;
     }

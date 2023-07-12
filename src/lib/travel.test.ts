@@ -158,7 +158,9 @@ describe("clearHistory method", () => {
       expect(isRedoPossible()).toBe(false);
       expect(size()).toBe(1);
     });
+  });
 
+  it("should clear with flag = true correctly", () => {
     wrapReactive(() => {
       const [
         value,
@@ -180,6 +182,13 @@ describe("clearHistory method", () => {
       expect(isUndoPossible()).toBe(false);
       expect(isRedoPossible()).toBe(false);
       expect(size()).toBe(0);
+
+      setValue(1);
+
+      expect(value()).toBe(1);
+      expect(isUndoPossible()).toBe(false);
+      expect(isRedoPossible()).toBe(false);
+      expect(size()).toBe(1);
     });
   });
 });
