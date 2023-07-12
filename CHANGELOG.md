@@ -1,4 +1,4 @@
-# 1.3.2
+# 1.3.3
 - Fixed bug with isUndoPossible after clearing history with flag = true
 
 # 1.3.1
