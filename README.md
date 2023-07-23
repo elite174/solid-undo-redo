@@ -22,92 +22,83 @@ The implementation is list-based, so it works in **O(1)** instead of O(n)!
 ## Usage
 
 ```tsx
-import {createUndoRedoSignal} from 'solid-undo-redo';
+import { createSignalWithHistory } from "solid-undo-redo";
 
-const [value, setValue, api] = createUndoRedoSignal<number | undefined>(
+const [value, setValue, history] = createSignalWithHistory<number | undefined>(
   undefined,
-  {
-    historyLength: HISTORY_LENGTH,
-  }
+  { historyLength: 10 }
 );
 
 setValue(1);
 
 // Since we haven't provided the initial value (undefined)
 // the history length equals to 1
-console.assert(api.size() === 1);
+console.assert(history.size() === 1);
 
 // Since the history length is 1
 // we can't do undo and redo
-console.assert(api.isUndoPossible() === false);
-console.assert(api.isRedoPossible() === false);
+console.assert(history.isUndoPossible() === false);
+console.assert(history.isRedoPossible() === false);
 
 setValue(2);
 
 // We added new value to the history
-console.assert(api.size() === 2);
+console.assert(history.size() === 2);
 
 // Now we can make undo operation
-console.assert(api.isUndoPossible() === true);
+console.assert(history.isUndoPossible() === true);
 // However we can't do redo because we're at the end
 // of our history
-console.assert(api.isRedoPossible() === false);
+console.assert(history.isRedoPossible() === false);
 
 // let's add some undo/redo listeners
-api.registerCallback("undo", (currentValue, previousValue) =>
+history.registerCallback("undo", (currentValue, previousValue) =>
   console.log(`Undo: ${currentValue}, ${previousValue}`)
 );
 
-api.registerCallback("redo", (currentValue, previousValue) => {
+history.registerCallback("redo", (currentValue, previousValue) => {
   console.log(`Redo: ${currentValue}, ${previousValue}`);
 });
 
 // Don't forget to remove these listeners with api.removeCallback
 // when you don't need them!
 
-api.undo();
+history.undo();
 // You'll see in the console "Undo: 1, 2"
 
 // Now we can't make undo operations
 // because we're at the beginning of our history
-console.assert(api.isUndoPossible() === false);
+console.assert(history.isUndoPossible() === false);
 // But we can do redo!
-console.assert(api.isRedoPossible() === true);
+console.assert(history.isRedoPossible() === true);
 
-api.redo();
+history.redo();
 // You'll see in the console "Redo: 2, 1"
 
 // Let's have a look at our history
-const historyItems = () => {
-  const items = [];
+console.log(history.toArray()); // [1, 2]
 
-  for (const value of api.createHistoryIterator()) {
-    items.push(value);
-  }
-
-  return items.join(", ");
-};
-
-console.log(historyItems()); // [1, 2]
+// You can also use history.arraySignal
+// To get a reactive accessor of the history array
 
 // Now let's clear our history and callbacks
-api.dispose();
+history.dispose();
 ```
 
 ## Docs
 
 ```tsx
-function createUndoRedoSignal<T>(
+function createSignalWithHistory<T>(
   initialValue?: T,
-  options?: UndoRedoSignalOptions<T | undefined>
-): UndoRedoSignal<T | undefined>;
+  options?: SignalWithHistoryOptions<T | undefined>
+): SignalWithHistory<T | undefined>;
 
 type CallbackTypeMap<T> = {
   undo: (currentValue: T, previousValue: T) => void;
   redo: (currentValue: T, previousValue: T) => void;
 };
 
-export interface UndoRedoSignalOptions<T> {
+export interface SignalWithHistoryOptions<T> {
   /**
    * Max history length
    * @default 100
@@ -119,16 +110,16 @@ export interface UndoRedoSignalOptions<T> {
   signalOptions?: SignalOptions<T> | undefined;
 }
 
-export type UndoRedoAPI<T> = {
+export type History<T> = {
   undo: VoidFunction;
   redo: VoidFunction;
 
   /**
-   * ClearHistory callback
+   * Cleas the history
    * @param clearCurrentValue - clears current value if set to true
    * @default false
    */
-  clearHistory: (clearCurrentValue?: boolean) => void;
+  clear: (clearCurrentValue?: boolean) => void;
 
   /** Reactive signal which indicates if undo operation is possible */
   isUndoPossible: Accessor<boolean>;
@@ -158,15 +149,21 @@ export type UndoRedoAPI<T> = {
     listener: CallbackTypeMap<T>[CallbackType]
   ) => void;
 
+  /** Returns non-reactive history array */
+  toArray: () => Array<T>;
+
+  /** Reactive signal of history array */
+  arraySignal: Accessor<Array<T>>;
+
   /** Clear all registered callbacks and history */
   dispose: VoidFunction;
 };
 
-export type UndoRedoSignal<T> = [
+export type SignalWithHistory<T> = [
   /** Reactive accessor for the value */
   get: Accessor<T>,
   /** Setter function for the value */
   set: Setter<T>,
-  api: UndoRedoAPI<T>
+  history: History<T>
 ];
 ```

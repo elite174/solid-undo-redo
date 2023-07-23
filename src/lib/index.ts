@@ -1,6 +1,6 @@
-export { createUndoRedoSignal } from "./travel";
+export { createSignalWithHistory } from "./travel";
 export type {
-  UndoRedoSignal,
-  UndoRedoSignalOptions,
-  UndoRedoAPI,
+  SignalWithHistory,
+  SignalWithHistoryOptions,
+  History,
 } from "./travel";

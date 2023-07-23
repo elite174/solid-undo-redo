@@ -1,12 +1,19 @@
 import type { Accessor, Setter, SignalOptions } from "solid-js";
-import { batch, createMemo, createSignal, untrack } from "solid-js";
+import {
+  batch,
+  createComputed,
+  createMemo,
+  createSignal,
+  on,
+  untrack,
+} from "solid-js";
 
 type CallbackTypeMap<T> = {
   undo: (currentValue: T, previousValue: T) => void;
   redo: (currentValue: T, previousValue: T) => void;
 };
 
-export interface UndoRedoSignalOptions<T> {
+export interface SignalWithHistoryOptions<T> {
   /**
    * Max history length
    * @default 100
@@ -18,16 +25,16 @@ export interface UndoRedoSignalOptions<T> {
   signalOptions?: SignalOptions<T> | undefined;
 }
 
-export type UndoRedoAPI<T> = {
+export type History<T> = {
   undo: VoidFunction;
   redo: VoidFunction;
 
   /**
-   * ClearHistory callback
+   * Cleas the history
    * @param clearCurrentValue - clears current value if set to true
    * @default false
    */
-  clearHistory: (clearCurrentValue?: boolean) => void;
+  clear: (clearCurrentValue?: boolean) => void;
 
   /** Reactive signal which indicates if undo operation is possible */
   isUndoPossible: Accessor<boolean>;
@@ -57,16 +64,22 @@ export type UndoRedoAPI<T> = {
     listener: CallbackTypeMap<T>[CallbackType]
   ) => void;
 
+  /** Returns non-reactive history array */
+  toArray: () => Array<T>;
+
+  /** Reactive signal of history array */
+  arraySignal: Accessor<Array<T>>;
+
   /** Clear all registered callbacks and history */
   dispose: VoidFunction;
 };
 
-export type UndoRedoSignal<T> = [
+export type SignalWithHistory<T> = [
   /** Reactive accessor for the value */
   get: Accessor<T>,
   /** Setter function for the value */
   set: Setter<T>,
-  api: UndoRedoAPI<T>
+  history: History<T>
 ];
 
 class ListNode<T> {
@@ -88,17 +101,16 @@ const DEFAULT_OPTIONS = {
 };
 
 const INITIAL_HISTORY_SIZE = 1;
-const DEFAULT_COMPARATOR = (prev: unknown, next: unknown) => prev === next;
 
-export function createUndoRedoSignal<T>(): UndoRedoSignal<T | undefined>;
-export function createUndoRedoSignal<T>(
+export function createSignalWithHistory<T>(): SignalWithHistory<T | undefined>;
+export function createSignalWithHistory<T>(
   initialValue: T,
-  options?: UndoRedoSignalOptions<T>
-): UndoRedoSignal<T>;
-export function createUndoRedoSignal<T>(
+  options?: SignalWithHistoryOptions<T>
+): SignalWithHistory<T>;
+export function createSignalWithHistory<T>(
   initialValue?: T,
-  options?: UndoRedoSignalOptions<T | undefined>
-): UndoRedoSignal<T | undefined> {
+  options?: SignalWithHistoryOptions<T | undefined>
+): SignalWithHistory<T | undefined> {
   const callbackMap: {
     [CallbackType in keyof CallbackTypeMap<T | undefined>]: Set<
       CallbackTypeMap<T | undefined>[CallbackType]
@@ -109,10 +121,13 @@ export function createUndoRedoSignal<T>(
   };
 
   const resolvedOptions = { ...DEFAULT_OPTIONS, ...options };
-  const equals = resolvedOptions.signalOptions?.equals ?? DEFAULT_COMPARATOR;
 
   let head = new ListNode<T | undefined>(initialValue);
 
+  const [_value, setValue] = createSignal<T | undefined>(
+    initialValue,
+    options?.signalOptions
+  );
   const [currentNodePointer, setCurrentNodePointer] = createSignal(head);
   const [iteratorSubscription, triggerIterator] = createSignal(undefined, {
     equals: false,
@@ -129,12 +144,7 @@ export function createUndoRedoSignal<T>(
     maxHistoryLength = 100;
   }
 
-  // @TODO refactor for native get/set
-  const value = createMemo(() => currentNodePointer().value, undefined, {
-    name: resolvedOptions.signalOptions?.name,
-  });
-
-  const addLast = (value: T) => {
+  const addLast = (value: T | undefined) => {
     const p = untrack(currentNodePointer);
 
     if (p.value === undefined) {
@@ -177,23 +187,17 @@ export function createUndoRedoSignal<T>(
     } else setSize((s) => s + 1);
   };
 
-  const setValue: Setter<T | undefined> = (newValue?: unknown) => {
-    const prevValue = untrack(currentNodePointer).value;
-    const nextValue =
-      typeof newValue === "function"
-        ? untrack(() => newValue(prevValue))
-        : newValue;
-
-    if (typeof equals === "function" ? equals(prevValue, nextValue) : equals)
-      return prevValue;
-
-    batch(() => {
-      addLast(nextValue);
-      triggerIterator();
-    });
-
-    return nextValue;
-  };
+  createComputed(
+    on(
+      _value,
+      (nextValue) =>
+        batch(() => {
+          addLast(nextValue);
+          triggerIterator();
+        }),
+      { defer: true }
+    )
+  );
 
   const undo = () => {
     const pointer = untrack(currentNodePointer);
@@ -227,7 +231,7 @@ export function createUndoRedoSignal<T>(
     );
   };
 
-  const clearHistory = (clearCurrentValue = false) => {
+  const clear = (clearCurrentValue = false) => {
     head = new ListNode(
       clearCurrentValue ? undefined : untrack(currentNodePointer).value
     );
@@ -246,7 +250,7 @@ export function createUndoRedoSignal<T>(
 
     let currentNode: ListNode<T | undefined> | null = head;
 
-    while (currentNode !== null) {
+    while (currentNode !== null && currentNode.value !== undefined) {
       yield currentNode.value;
 
       currentNode = currentNode.next;
@@ -255,14 +259,14 @@ export function createUndoRedoSignal<T>(
     return;
   }
 
-  const registerCallback: UndoRedoAPI<T | undefined>["registerCallback"] = (
+  const registerCallback: History<T | undefined>["registerCallback"] = (
     type,
     callback
   ) => {
     callbackMap[type]?.add(callback);
   };
 
-  const removeCallback: UndoRedoAPI<T | undefined>["removeCallback"] = (
+  const removeCallback: History<T | undefined>["removeCallback"] = (
     type,
     callback
   ) => {
@@ -272,8 +276,24 @@ export function createUndoRedoSignal<T>(
   const dispose = () => {
     Object.values(callbackMap).forEach((set) => set.clear());
 
-    clearHistory();
+    clear();
   };
+
+  const value = createMemo(() => currentNodePointer().value);
+
+  const getHistoryArray = () => {
+    const result: Array<T | undefined> = [];
+
+    for (const item of createHistoryIterator()) {
+      result.push(item);
+    }
+
+    return result;
+  };
+
+  const toArray = () => untrack(getHistoryArray);
+
+  const arraySignal = createMemo(() => getHistoryArray());
 
   return [
     value,
@@ -281,13 +301,15 @@ export function createUndoRedoSignal<T>(
     {
       undo,
       redo,
-      clearHistory,
+      clear,
       isUndoPossible: () => Boolean(currentNodePointer().prev),
       isRedoPossible: () => Boolean(currentNodePointer().next),
       createHistoryIterator,
       size,
       registerCallback,
       removeCallback,
+      toArray,
+      arraySignal,
       dispose,
     },
   ];

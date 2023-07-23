@@ -1,7 +1,7 @@
-import { createRoot } from "solid-js";
+import { createComputed, createRoot } from "solid-js";
 import { describe, expect, it, vitest } from "vitest";
 
-import { createUndoRedoSignal } from "./travel";
+import { createSignalWithHistory } from "./travel";
 
 const wrapReactive = (fn: VoidFunction) => {
   const dispose = createRoot((dispose) => {
@@ -13,11 +13,11 @@ const wrapReactive = (fn: VoidFunction) => {
   dispose();
 };
 
-describe("createUndoRedoSignal", () => {
+describe(createSignalWithHistory.name, () => {
   it("should be correctly initialized", () => {
     wrapReactive(() => {
       const [value, _, { isRedoPossible, isUndoPossible }] =
-        createUndoRedoSignal(1);
+        createSignalWithHistory(1);
 
       expect(value()).toBe(1);
       expect(isRedoPossible()).toBe(false);
@@ -27,7 +27,7 @@ describe("createUndoRedoSignal", () => {
 
   it("should set items correctly", () => {
     wrapReactive(() => {
-      const [value, setValue] = createUndoRedoSignal(1);
+      const [value, setValue] = createSignalWithHistory(1);
 
       expect(value()).toBe(1);
 
@@ -44,7 +44,8 @@ describe("createUndoRedoSignal", () => {
   describe("set method", () => {
     it("should add new items to the history", () => {
       wrapReactive(() => {
-        const [value, setValue, { isUndoPossible }] = createUndoRedoSignal(1);
+        const [value, setValue, { isUndoPossible }] =
+          createSignalWithHistory(1);
 
         expect(isUndoPossible()).toBe(false);
 
@@ -60,7 +61,7 @@ describe("createUndoRedoSignal", () => {
     it("should correctly undo the last value", () => {
       wrapReactive(() => {
         const [value, setValue, { undo, isUndoPossible }] =
-          createUndoRedoSignal(1);
+          createSignalWithHistory(1);
 
         setValue(2);
 
@@ -76,7 +77,7 @@ describe("createUndoRedoSignal", () => {
 
     it("should work correctly with empty history", () => {
       wrapReactive(() => {
-        const [value, _, { undo, isUndoPossible }] = createUndoRedoSignal(1);
+        const [value, _, { undo, isUndoPossible }] = createSignalWithHistory(1);
 
         expect(isUndoPossible()).toBe(false);
         undo();
@@ -92,7 +93,7 @@ describe("createUndoRedoSignal", () => {
           value,
           setValue,
           { undo, isRedoPossible, isUndoPossible, createHistoryIterator, size },
-        ] = createUndoRedoSignal(1, { historyLength: 3 });
+        ] = createSignalWithHistory(1, { historyLength: 3 });
 
         expect(value()).toBe(1);
         expect(isRedoPossible()).toBe(false);
@@ -134,14 +135,14 @@ describe("createUndoRedoSignal", () => {
   });
 });
 
-describe("clearHistory method", () => {
+describe("clear method", () => {
   it("should work correctly", () => {
     wrapReactive(() => {
       const [
         value,
         setValue,
-        { clearHistory, isUndoPossible, isRedoPossible, size },
-      ] = createUndoRedoSignal(1);
+        { clear: clearHistory, isUndoPossible, isRedoPossible, size },
+      ] = createSignalWithHistory(1);
 
       expect(value()).toBe(1);
 
@@ -165,8 +166,8 @@ describe("clearHistory method", () => {
       const [
         value,
         setValue,
-        { clearHistory, isUndoPossible, isRedoPossible, size },
-      ] = createUndoRedoSignal(1);
+        { clear: clearHistory, isUndoPossible, isRedoPossible, size },
+      ] = createSignalWithHistory(1);
 
       expect(value()).toBe(1);
 
@@ -197,7 +198,7 @@ describe("redo function", () => {
   it("should work correctly", () => {
     wrapReactive(() => {
       const [value, setValue, { redo, isRedoPossible }] =
-        createUndoRedoSignal(1);
+        createSignalWithHistory(1);
 
       expect(value()).toBe(1);
       expect(isRedoPossible()).toBe(false);
@@ -217,7 +218,7 @@ describe("redo function", () => {
   it("should work correctly with undo", () => {
     wrapReactive(() => {
       const [value, setValue, { redo, undo, isRedoPossible, isUndoPossible }] =
-        createUndoRedoSignal(1);
+        createSignalWithHistory(1);
 
       expect(value()).toBe(1);
       expect(isRedoPossible()).toBe(false);
@@ -253,7 +254,7 @@ describe("redo function", () => {
 describe("custom signal options option", () => {
   it("should work with custom comparator function", () => {
     wrapReactive(() => {
-      const [value, setValue, { isUndoPossible }] = createUndoRedoSignal(
+      const [value, setValue, { isUndoPossible }] = createSignalWithHistory(
         "123",
         {
           signalOptions: { equals: (prev, next) => prev[0] === next[0] },
@@ -272,7 +273,7 @@ describe("custom signal options option", () => {
 
   it("should keep same values if equals === false", () => {
     wrapReactive(() => {
-      const [value, setValue, { isUndoPossible }] = createUndoRedoSignal(
+      const [value, setValue, { isUndoPossible }] = createSignalWithHistory(
         "123",
         {
           signalOptions: { equals: false },
@@ -297,7 +298,7 @@ describe("onUndo, onRedo callbacks", () => {
       const onRedo = vitest.fn();
 
       const [_, setValue, { undo, redo, registerCallback, dispose }] =
-        createUndoRedoSignal<number>(1);
+        createSignalWithHistory<number>(1);
 
       registerCallback("undo", onUndo);
       registerCallback("redo", onRedo);
@@ -322,7 +323,7 @@ describe("onUndo, onRedo callbacks", () => {
       const onRedo = vitest.fn();
 
       const [_, setValue, { undo, redo, registerCallback, dispose }] =
-        createUndoRedoSignal<number>(1);
+        createSignalWithHistory<number>(1);
 
       registerCallback("undo", onUndo);
       registerCallback("redo", onRedo);
@@ -360,7 +361,7 @@ describe("onUndo, onRedo callbacks", () => {
       const onRedo = vitest.fn();
 
       const [_, _1, { undo, redo, registerCallback, dispose }] =
-        createUndoRedoSignal<number>(1);
+        createSignalWithHistory<number>(1);
 
       registerCallback("undo", onUndo);
       registerCallback("redo", onRedo);
@@ -381,7 +382,7 @@ describe("onUndo, onRedo callbacks", () => {
       const onRedo = vitest.fn();
 
       const [_, setValue, { undo, registerCallback, dispose }] =
-        createUndoRedoSignal<number>(1);
+        createSignalWithHistory<number>(1);
 
       registerCallback("undo", onUndo);
       registerCallback("redo", onRedo);
@@ -410,7 +411,7 @@ describe("Undo/redo callbacks", () => {
       const onRedo = vitest.fn();
 
       const [v, setV, { undo, redo, registerCallback, dispose }] =
-        createUndoRedoSignal();
+        createSignalWithHistory();
 
       registerCallback("undo", onUndo);
       registerCallback("redo", onRedo);
@@ -437,7 +438,7 @@ describe("Undo/redo callbacks", () => {
         v,
         setV,
         { undo, redo, registerCallback, dispose, removeCallback },
-      ] = createUndoRedoSignal();
+      ] = createSignalWithHistory();
 
       registerCallback("undo", onUndo);
       registerCallback("redo", onRedo);
@@ -472,7 +473,7 @@ describe("Dispose function", () => {
       const onRedo = vitest.fn();
 
       const [v, setV, { undo, redo, size, registerCallback, dispose }] =
-        createUndoRedoSignal();
+        createSignalWithHistory();
 
       registerCallback("undo", onUndo);
       registerCallback("redo", onRedo);
@@ -502,7 +503,7 @@ describe("Dispose function", () => {
 describe("Late value set", () => {
   it("should show correct size", () => {
     wrapReactive(() => {
-      const [value, setValue, { size }] = createUndoRedoSignal();
+      const [value, setValue, { size }] = createSignalWithHistory();
 
       expect(size()).toBe(0);
     });
@@ -510,42 +511,50 @@ describe("Late value set", () => {
 
   it("should correctly increase size after first set", () => {
     wrapReactive(() => {
-      const [value, setValue, { size }] = createUndoRedoSignal();
+      const [value, setValue, { size }] = createSignalWithHistory();
 
       expect(size()).toBe(0);
+      expect(value()).toBe(undefined);
 
       setValue(1);
 
+      console.log(size());
+
       expect(size()).toBe(1);
+      expect(value()).toBe(1);
     });
 
     wrapReactive(() => {
-      const [value, setValue, { size }] = createUndoRedoSignal();
+      const [value, setValue, { size }] = createSignalWithHistory();
 
       expect(size()).toBe(0);
+      expect(value()).toBe(undefined);
 
       setValue(undefined);
 
       expect(size()).toBe(0);
+      expect(value()).toBe(undefined);
     });
 
     wrapReactive(() => {
-      const [value, setValue, { size }] = createUndoRedoSignal(undefined, {
+      const [value, setValue, { size }] = createSignalWithHistory(undefined, {
         signalOptions: { equals: false },
       });
 
       expect(size()).toBe(0);
+      expect(value()).toBe(undefined);
 
       setValue(undefined);
 
       expect(size()).toBe(1);
+      expect(value()).toBe(undefined);
     });
   });
 
   it("should correctly show possibilities", () => {
     wrapReactive(() => {
       const [value, setValue, { size, isRedoPossible, isUndoPossible }] =
-        createUndoRedoSignal();
+        createSignalWithHistory();
 
       expect(size()).toBe(0);
 
@@ -555,13 +564,14 @@ describe("Late value set", () => {
 
     wrapReactive(() => {
       const [value, setValue, { size, isRedoPossible, isUndoPossible }] =
-        createUndoRedoSignal();
+        createSignalWithHistory();
 
       expect(size()).toBe(0);
 
       setValue(1);
 
       expect(size()).toBe(1);
+      expect(value()).toBe(1);
 
       expect(isRedoPossible()).toBe(false);
       expect(isUndoPossible()).toBe(false);
@@ -570,7 +580,8 @@ describe("Late value set", () => {
 
   it("should correctly reset history", () => {
     wrapReactive(() => {
-      const [value, setValue, { size, clearHistory }] = createUndoRedoSignal();
+      const [value, setValue, { size, clear: clearHistory }] =
+        createSignalWithHistory();
 
       expect(size()).toBe(0);
 
@@ -584,7 +595,8 @@ describe("Late value set", () => {
     });
 
     wrapReactive(() => {
-      const [value, setValue, { size, clearHistory }] = createUndoRedoSignal();
+      const [value, setValue, { size, clear: clearHistory }] =
+        createSignalWithHistory();
 
       expect(size()).toBe(0);
 
@@ -601,7 +613,7 @@ describe("Late value set", () => {
         const onRedo = vitest.fn();
 
         const [_, setValue, { undo, redo, registerCallback, dispose }] =
-          createUndoRedoSignal<number | undefined>(undefined);
+          createSignalWithHistory<number | undefined>(undefined);
 
         registerCallback("undo", onUndo);
         registerCallback("redo", onRedo);
@@ -631,7 +643,7 @@ describe("Late value set", () => {
         const onRedo = vitest.fn();
 
         const [_, setValue, { undo, redo, registerCallback, dispose }] =
-          createUndoRedoSignal<number | undefined>(undefined);
+          createSignalWithHistory<number | undefined>(undefined);
 
         registerCallback("undo", onUndo);
         registerCallback("redo", onRedo);
@@ -667,7 +679,7 @@ describe("Late value set", () => {
         const onRedo = vitest.fn();
 
         const [_, _1, { undo, redo, registerCallback, dispose }] =
-          createUndoRedoSignal<number | undefined>(undefined);
+          createSignalWithHistory<number | undefined>(undefined);
 
         registerCallback("undo", onUndo);
         registerCallback("redo", onRedo);
@@ -688,7 +700,7 @@ describe("Late value set", () => {
         const onRedo = vitest.fn();
 
         const [_, setValue, { undo, registerCallback, dispose }] =
-          createUndoRedoSignal<number | undefined>(undefined);
+          createSignalWithHistory<number | undefined>(undefined);
 
         registerCallback("undo", onUndo);
         registerCallback("redo", onRedo);
@@ -705,6 +717,120 @@ describe("Late value set", () => {
         expect(onUndo).toHaveBeenCalledTimes(0);
 
         dispose();
+      });
+    });
+  });
+});
+
+describe("toArray methods", () => {
+  describe("toArray", () => {
+    it("should work correctly", () => {
+      wrapReactive(() => {
+        const [value, setValue, { toArray }] = createSignalWithHistory();
+
+        expect(toArray()).toEqual([]);
+      });
+
+      wrapReactive(() => {
+        const [value, setValue, { toArray }] = createSignalWithHistory(1);
+
+        expect(toArray()).toEqual([1]);
+      });
+
+      wrapReactive(() => {
+        const [value, setValue, { toArray }] = createSignalWithHistory();
+
+        expect(toArray()).toEqual([]);
+
+        setValue(1);
+
+        expect(toArray()).toEqual([1]);
+      });
+
+      wrapReactive(() => {
+        const [value, setValue, { toArray, clear: clearHistory }] =
+          createSignalWithHistory(1, { historyLength: 2 });
+
+        expect(toArray()).toEqual([1]);
+
+        setValue(1);
+        setValue(2);
+        setValue(3);
+
+        expect(toArray()).toEqual([2, 3]);
+      });
+
+      wrapReactive(() => {
+        const [value, setValue, { toArray, clear: clearHistory }] =
+          createSignalWithHistory(1, {
+            historyLength: 2,
+            signalOptions: { equals: false },
+          });
+
+        expect(toArray()).toEqual([1]);
+
+        setValue(1);
+        setValue(1);
+        setValue(1);
+
+        expect(toArray()).toEqual([1, 1]);
+      });
+
+      wrapReactive(() => {
+        const [value, setValue, { toArray, clear: clearHistory }] =
+          createSignalWithHistory(1);
+
+        expect(toArray()).toEqual([1]);
+
+        clearHistory();
+
+        expect(toArray()).toEqual([1]);
+      });
+
+      wrapReactive(() => {
+        const [value, setValue, { toArray, clear: clearHistory }] =
+          createSignalWithHistory(1);
+
+        expect(toArray()).toEqual([1]);
+
+        clearHistory(true);
+
+        expect(toArray()).toEqual([]);
+      });
+    });
+  });
+
+  describe("toArraySignal", () => {
+    it("should work correctly", () => {
+      wrapReactive(() => {
+        const fn = vitest.fn();
+
+        const [value, setValue, { arraySignal, clear }] =
+          createSignalWithHistory(1);
+
+        createComputed(() => {
+          const array = arraySignal();
+
+          fn(array);
+        });
+
+        expect(fn).toBeCalledTimes(1);
+        expect(fn).toBeCalledWith([1]);
+
+        setValue(2);
+
+        expect(fn).toBeCalledTimes(2);
+        expect(fn).toBeCalledWith([1, 2]);
+
+        clear();
+
+        expect(fn).toBeCalledTimes(3);
+        expect(fn).toBeCalledWith([2]);
+
+        clear(true);
+
+        expect(fn).toBeCalledTimes(4);
+        expect(fn).toBeCalledWith([]);
       });
     });
   });
