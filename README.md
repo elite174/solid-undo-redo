@@ -1,5 +1,8 @@
 # solid-undo-redo
 
+[![version](https://img.shields.io/npm/v/solid-undo-redo?style=for-the-badge)](https://www.npmjs.com/package/solid-undo-redo)
+![npm](https://img.shields.io/npm/dw/solid-undo-redo?style=for-the-badge)
+
 A small library for undo-redo operations!
 Make signals with history.
 The implementation is list-based, so it works in **O(1)** instead of O(n)!
