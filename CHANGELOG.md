@@ -1,3 +1,22 @@
+# 1.4.0
+
+## New features
+
+- `toArray()` - returns a history array
+- `arraySignal` - reactive `Accessor` of the history array
+
+## Changes
+
+- `createUndoRedoSignal` => `createSignalWithHistory`
+- `clearHistory` => `clear`
+- `UndoRedoSignalOptions<T>` => `SignalWithHistoryOptions<T>`
+- `UndoRedoSignal<T>` => `SignalWithHistory<T>`
+- `UndoRedoAPI<T>` => `History<T>`
+
+## Others
+
+- Fixed some bugs
+
 # 1.3.3
 - Fixed bug with isUndoPossible after clearing history with flag = true
 
