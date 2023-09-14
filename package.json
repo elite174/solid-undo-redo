@@ -1,6 +1,6 @@
 {
   "name": "solid-undo-redo",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "A list-based (O(1)) implementation of undo-redo for signals!",
   "type": "module",
   "main": "dist/esm/index.js",
@@ -12,7 +12,8 @@
       "import": "./dist/esm/index.js",
       "browser": "./dist/esm/index.js",
       "node": "./dist/esm/index.js",
-      "require": "./dist/cjs/index.js"
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/types/index.d.ts"
     }
   },
   "sideEffects": false,
